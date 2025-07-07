@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+
+  "name": "유튜브 다운로드 트래커",
+  "description": "youtube download tracker",
+  "version": "1.0",
+
+  "options_ui": {
+    "page": "options.html"
+  },
+
+  "action": {
+    "default_icon": "icon.png",
+    "default_popup": "popup.html"
+  },
+
+  "content_scripts": [
+      {
+          "matches": ["https://www.youtube.com/*"],
+          "js": ["js/vendor.js", "js/content_script.js"],
+          "run_at": "document_end"
+      }
+  ],
+
+  "background": {
+    "service_worker": "js/background.js"
+  },
+
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "tabs",
+    "history",
+    "webNavigation"
+  ],
+
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "https://www.youtube.com/*"
+  ]
+}
