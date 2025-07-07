@@ -17,3 +17,10 @@
     - [ ] 검색 결과 페이지 적용
     - [ ] 간헐적으로 추가 안되는 이슈 확인
 
+
+### ISSUES
+
+25.07.07 - 쿠키 사용 필수
+- 17:39분부터 쿠키를 사용하지 않는 경우, title이 비정상적으로 적용됨.
+- solution for mac
+  - ~/.config/yt-dlp/config 파일 >>  --cookies-from-browser chrome (browser에 따라 다름.)
