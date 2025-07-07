@@ -135,7 +135,8 @@ app.post('/api/download', async (req: Request, res: Response<DownloadResponse>) 
       let ytDlpEventEmitter = ytDlpWrap.exec([
         url,
         '-f',
-        'bv*[ext=webm]+ba*[ext=webm]/b[ext=webm]/bv*+ba*/b',
+        // 'bv*[height>=1080][ext=webm]+ba*[ext=webm]/bv*[ext=mp4]+ba*/best',
+        'bv*[height>=1080][ext=webm]+ba*[ext=webm]/bv*[height>=720][ext=webm]+ba*[ext=webm]/bv*[ext=mp4]+ba*[ext=m4a]/bv*[ext=mp4]+ba*[ext=aac]/best',
         '-P',
         '/Users/windows11/Downloads'
 

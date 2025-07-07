@@ -4,7 +4,7 @@ import { TrackToolbar } from '../component/TrackToolbar';
 import React from 'react';
 
 export class ToolbarService {
-  private static readonly TOOLBAR_CLASS = 'trackerToolbar';
+  public static readonly TOOLBAR_CLASS = 'trackerToolbar';
 
   public static removeAllToolbars(): void {
     const toolbars = document.querySelectorAll(`.${this.TOOLBAR_CLASS}`);
@@ -40,14 +40,7 @@ export class ToolbarService {
   private static createToolbarElement(): HTMLDivElement {
     const div = document.createElement('div');
     div.className = this.TOOLBAR_CLASS;
-    Object.assign(div.style, {
-      position: 'absolute',
-      top: '0',
-      width: '50%',
-      float: 'right',
-      zIndex: '9999999',
-      background: 'green'
-    });
+    
 
     this.attachEventHandlers(div);
     return div;

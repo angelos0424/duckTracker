@@ -86,6 +86,16 @@ class ContentScript {
       if (msg.action === 'url_changed') {
         ToolbarService.removeAllToolbars();
         this.observer.init();
+      } else if (msg.action === 'toggle_toolbar_visibility') {
+        const toolbars = document.querySelectorAll(`.${ToolbarService.TOOLBAR_CLASS}`);
+        toolbars.forEach(toolbar => {
+          const htmlToolbar = toolbar as HTMLElement;
+          if (htmlToolbar.style.display === 'none') {
+            htmlToolbar.style.display = 'flex';
+          } else {
+            htmlToolbar.style.display = 'none';
+          }
+        });
       }
     });
   }

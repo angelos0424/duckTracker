@@ -4,6 +4,8 @@ import { ServiceContext } from "./contexts/ServiceContext";
 import { Observer } from "./services/Observer";
 import { ToolbarService } from "./services/ToolbarService";
 
+import './popup.css';
+
 const Popup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const modalRef = useRef<HTMLDialogElement>(null);
@@ -103,10 +105,14 @@ const Popup = () => {
 
   return (
     <ServiceContext.Provider value={{ observer: observerInstance, toolbarService: ToolbarService }}>
-      <div style={{ padding: "20px", width: "400px" }}>
+      <div className="popup-container">
         <h1>트래커 테스트</h1>
 
         <button onClick={activeButton}>테스트 버튼</button>
+
+        <button onClick={() => chrome.runtime.sendMessage({ action: "toggle_toolbar_visibility" })}>
+          Toggle Toolbar
+        </button>
 
         <button onClick={clickDeleteButton} disabled={isLoading}>
           저장된 history 모두 삭제

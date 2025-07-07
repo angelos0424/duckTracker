@@ -32,10 +32,14 @@ module.exports = {
                 test: /\.tsx?$/,
                 use: "ts-loader",
             },
+            {
+                test: /\.css$/,
+                use: ['style-loader', 'css-loader'],
+            },
         ],
     },
     resolve: {
-        extensions: [".ts", ".tsx", ".js"],
+        extensions: [".ts", ".tsx", ".js", ".css"],
     },
     plugins: [
         new CopyPlugin({

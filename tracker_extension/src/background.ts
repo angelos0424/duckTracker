@@ -69,5 +69,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })
     .catch(err => sendMsg('log', err));
     return true;
+  } else if (message.action === 'toggle_toolbar_visibility') {
+    sendMsg(message.action, message.text);
   }
 });
