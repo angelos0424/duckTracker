@@ -1,4 +1,15 @@
 import {checkItem, setItem, deleteItem, deleteAllItem} from './storage'
+import { webSocketService } from './services/WebSocketService';
+
+webSocketService.addMessageListener((event: MessageEvent) => {
+  const data = JSON.parse(event.data);
+  if (data.status === 'completed') {
+    setItem(data.urlId);
+  }
+  // Relay message to the content script
+  sendMsg('download_status', data);
+});
+
 // Listen for keyboard commands
 const sendMsg = (action: string, text: any)=> {
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
@@ -50,26 +61,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'log') {
     sendMsg(message.action, message.text)
   } else if (message.action === 'download') {
-    fetch('http://localhost:3000/api/download', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify({ urlId: message.text})
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        setItem(message.text).then(res => {
-          sendResponse(res);
-        });
-      }
-
-    })
-    .catch(err => sendMsg('log', err));
+    webSocketService.sendMessage(message.text);
     return true;
   } else if (message.action === 'toggle_toolbar_visibility') {
+    sendMsg(message.action, message.text);
+  } else if (message.action === 'toggle_side_panel_visibility') {
     sendMsg(message.action, message.text);
   }
 });

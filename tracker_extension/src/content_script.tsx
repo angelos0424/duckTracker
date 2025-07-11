@@ -1,6 +1,9 @@
 // content.ts
-import { Observer } from './services/Observer'
-import { ToolbarService } from './services/ToolbarService';
+import {ElementTypes, Observer} from './services/Observer'
+import {ToolbarService} from './services/ToolbarService';
+import {createRoot, Root} from 'react-dom/client';
+import {SidePanel} from './component/SidePanel';
+import React from 'react';
 
 interface IMsg {
   action: string;
@@ -9,64 +12,66 @@ interface IMsg {
 
 class ContentScript {
   private observer: Observer;
+  private sidePanelRoot: Root | null = null;
+  private sidePanelContainer: HTMLDivElement | null = null;
+  private isSidePanelOpen: boolean = false;
 
   constructor() {
     this.observer = new Observer(this.handleElementFound.bind(this));
     this.initializeMessageListener();
     this.initializeObserver();
+    this.initializeSidePanel();
   }
 
-  private handleElementFound(element: Element, isShorts: boolean, isVideoPlayer: boolean): void {
-    console.log('handleElementFound called:', { element, isShorts, isVideoPlayer });
-    const target = isVideoPlayer ? null : element.querySelector('img.yt-core-image') as HTMLImageElement;
-    console.log('handleElementFound - target (img.yt-core-image):', target);
-    if (target || isVideoPlayer) {
-      const url = isVideoPlayer ? window.location.href : target?.src;
-      console.log('handleElementFound - url:', url);
-      if (!url) {
-        console.log('handleElementFound - URL is null or undefined, returning.');
-        return;
-      }
-      const urlId = this.extractUrlId(url, isVideoPlayer);
-      console.log('handleElementFound - extracted urlId:', urlId);
+  private initializeSidePanel(): void {
+    this.sidePanelContainer = document.createElement('div');
+    this.sidePanelContainer.id = 'tracker-side-panel-container';
+    document.body.appendChild(this.sidePanelContainer);
+    this.sidePanelRoot = createRoot(this.sidePanelContainer);
+    this.renderSidePanel();
+  }
 
-      ToolbarService.createToolbar(element, urlId, isVideoPlayer);
-      console.log('ToolbarService.createToolbar called.');
-    } else {
-      console.log('handleElementFound - No target or not a video player, observing for target.');
-      this.observeForTarget(element, isVideoPlayer);
+  private renderSidePanel(): void {
+    if (this.sidePanelRoot && this.sidePanelContainer) {
+      this.sidePanelRoot.render(
+        <SidePanel isOpen={this.isSidePanelOpen} onClose={this.toggleSidePanel.bind(this)} />
+      );
     }
   }
 
-  private observeForTarget(element: Element, isVideo: boolean): void {
-    console.log('observeForTarget called:', { element, isVideo });
+  private toggleSidePanel(): void {
+    this.isSidePanelOpen = !this.isSidePanelOpen;
+    this.renderSidePanel();
+  }
+
+  private handleElementFound(element: Element, elementType : ElementTypes): void {
+    const isVideoPlayer = element.tagName.toLowerCase() === 'ytd-watch-flexy'; // 동영상 단일페이지일 때.
+    const isPlayList = element.closest('yt-lockup-view-model') !== null;
+
+    // url은 그냥 url인데
+    const url = elementType === ElementTypes.VIDEO ? element.getAttribute('video-id') : (element as HTMLAnchorElement).href || (element as HTMLImageElement).src;
+    console.log('url111', url);
+
+    if (url) {
+      const urlId = isPlayList || elementType === ElementTypes.VIDEO ? url : this.extractUrlId(url, isVideoPlayer);
+      if (url.includes('shorts')) {
+        console.log('url222', urlId, isVideoPlayer, isPlayList);
+      }
+      ToolbarService.createToolbar(element, url.includes('shorts') ? url:urlId, isVideoPlayer, isPlayList);
+    } else {
+      console.log('url333', element);
+      this.observeForTarget(element);
+    }
+  }
+
+  private observeForTarget(element: Element): void {
     const observer = new MutationObserver((mutations) => {
       mutations.forEach(mutation => {
-        console.log('observeForTarget - Mutation type:', mutation.type);
-        if (mutation.type === 'childList') {
-          mutation.addedNodes.forEach(node => {
-            if (node.nodeType === Node.ELEMENT_NODE) {
-              const targetElement = node as Element;
-              // Check if the added node itself is an image/video or contains one
-              const imgOrVideo = targetElement.querySelector('img.yt-core-image') || targetElement.querySelector('video');
-              if (imgOrVideo instanceof HTMLImageElement || imgOrVideo instanceof HTMLVideoElement) {
-                console.log('observeForTarget - Added node contains img or video:', imgOrVideo);
-                const urlId = this.extractUrlIdForObserver(imgOrVideo.src, isVideo);
-                ToolbarService.createToolbar(element, urlId, isVideo);
-                observer.disconnect();
-              }
-            }
-          });
-        } else if (mutation.type === 'attributes') {
-          const target = mutation.target as HTMLImageElement | HTMLVideoElement;
-          console.log('observeForTarget - Attribute changed on:', target);
-          // Check if the attribute change is on an image or video element and it has a src
-          if ((target instanceof HTMLImageElement || target instanceof HTMLVideoElement) && target.src) {
-            console.log('observeForTarget - Target src found on attribute change:', target.src);
-            const urlId = this.extractUrlIdForObserver(target.src, isVideo);
-            ToolbarService.createToolbar(element, urlId, isVideo);
-            observer.disconnect();
-          }
+        // 이쪽으로 들어오는 애들 좀 봐야할거 같은데.
+        if (mutation.type === 'attributes' && ((mutation.target as HTMLElement).hasAttribute('src') || (mutation.target as HTMLElement).hasAttribute('href')))  {
+          console.log(`src :: ${(mutation.target as HTMLElement).getAttribute('src')}, href :: ${(mutation.target as HTMLElement).getAttribute('href')}`);
+          this.handleElementFound(element, ElementTypes.VIDEO);
+          observer.disconnect();
         }
       });
     });
@@ -75,7 +80,7 @@ class ContentScript {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['src'], // Only observe src attribute changes
+      attributeFilter: ['src'],
     });
 
     setTimeout(() => observer.disconnect(), 50000);
@@ -96,43 +101,34 @@ class ContentScript {
             htmlToolbar.style.display = 'none';
           }
         });
+      } else if (msg.action === 'toggle_side_panel_visibility') {
+        this.toggleSidePanel();
       }
     });
   }
 
   private initializeObserver(): void {
-    console.log('initializeObserver called. document.readyState:', document.readyState);
     if (document.readyState === 'loading') {
-      console.log('Document is loading, adding DOMContentLoaded listener.');
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('DOMContentLoaded fired, initializing observer.');
         this.observer.init();
       });
     } else {
-      console.log('Document already loaded, initializing observer.');
       this.observer.init();
     }
   }
 
   private extractUrlId(src: string, isVideo: boolean): string {
     try {
-      const urlObj = new URL(src.replace('blob:', ''));
-      const urlId = isVideo && !urlObj.pathname.startsWith('/shorts/') ? urlObj.search.split('=')[1].split('&')[0] : urlObj.pathname.split('/')[2];
+      const urlObj = new URL(src);
+      if (src.includes('shorts')) {
+        return urlObj.pathname.split('/')[2];
+      }
+
+      const urlId = urlObj.searchParams.get('v');
       return urlId || '';
     } catch (e) {
       console.error('Error extracting URL ID:', e, src, isVideo);
-      return '';
-    }
-  }
-
-  private extractUrlIdForObserver(src: string, isVideo: boolean): string {
-    try {
-      const urlObj = new URL(src.replace('blob:', ''));
-      const urlId = isVideo ? urlObj.search.split('=')[1].split('&')[0] : urlObj.pathname.split('/')[2];
-      return urlId || '';
-    } catch (e) {
-      console.error('Error extracting URL ID:', e, src);
-      return '';
+      return src;
     }
   }
 }

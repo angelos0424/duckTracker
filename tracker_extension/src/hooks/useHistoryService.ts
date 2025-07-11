@@ -1,10 +1,34 @@
 import { useContext, useState, useEffect, useCallback } from 'react';
 import { ServiceContext } from '../contexts/ServiceContext';
 
-export const useHistoryService = (urlId: string) => {
+export const useHistoryService = (urlId: string, isPlayList: boolean) => {
   const [saved, setSaved] = useState(false);
-  // ServiceContext에서 필요한 서비스 (여기서는 직접 사용하지 않지만, 예시를 위해 포함)
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toolbarService } = useContext(ServiceContext);
+
+  useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (message.action === 'download_status') {
+        const data = message.text;
+        const messageUrlId = new URL(data.url).searchParams.get('v');
+        if (messageUrlId !== urlId) return;
+
+        if (data.status === 'completed') {
+          setIsDownloading(false);
+          toggleHistory();
+        } else if (data.status === 'error') {
+          setIsDownloading(false);
+          alert(`Download failed: ${data.error}`);
+        }
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [urlId]);
 
   // 초기 저장 상태 확인
   useEffect(() => {
@@ -13,22 +37,23 @@ export const useHistoryService = (urlId: string) => {
     });
   }, [urlId]);
 
-  // 저장/저장 해제 토글
   const toggleHistory = useCallback(() => {
     chrome.runtime.sendMessage({ action: 'save_history', text: urlId }, (response: any) => {
       setSaved(response.success);
     });
   }, [urlId]);
 
-  // 다운로드
   const download = useCallback(() => {
-    chrome.runtime.sendMessage({ action: 'download', text: urlId }, response => {
-      setSaved(response.success);
-      if (!response.success) {
-        alert(response.error);
+    setIsDownloading(true);
+    const message = {
+      action: 'download',
+      text: {
+        action: 'download',
+        url: isPlayList ? urlId : `https://www.youtube.com/watch?v=${urlId}`,
       }
-    });
-  }, [urlId]);
+    };
+    chrome.runtime.sendMessage(message);
+  }, [urlId, isPlayList]);
 
-  return { saved, toggleHistory, download };
+  return { saved, isDownloading, toggleHistory, download };
 };

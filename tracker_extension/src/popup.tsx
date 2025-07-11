@@ -3,38 +3,21 @@ import { createRoot } from "react-dom/client";
 import { ServiceContext } from "./contexts/ServiceContext";
 import { Observer } from "./services/Observer";
 import { ToolbarService } from "./services/ToolbarService";
+import { SidePanel } from "./component/SidePanel";
 
 import './popup.css';
 
 const Popup = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const modalRef = useRef<HTMLDialogElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [observerInstance, setObserverInstance] = useState<Observer | null>(null);
 
   useEffect(() => {
-    console.log("Popup opened");
-
-    // Initialize Observer
-    const onElementFoundCallback = (element: Element, isShorts: boolean) => {
-      console.log("Element found by Observer:", element, "isShorts:", isShorts);
-      // 여기에 필요한 로직 추가 (예: ToolbarService.createToolbar 호출 등)
-      // 하지만 Popup 컴포넌트에서는 직접적인 DOM 조작을 피하는 것이 좋습니다.
-      // ToolbarService.createToolbar는 content_script에서 호출되므로 여기서는 필요 없습니다.
-    };
-
-    const obs = new Observer(onElementFoundCallback);
-    obs.init();
-    setObserverInstance(obs);
-
-    // Initial history check (existing logic)
-    chrome.storage.local.get("history", (result) => {
-      console.log("Initial history:", result);
-    });
-
-    return () => {
-      obs.disconnect(); // Clean up observer on unmount
-    };
+    // Todo : sync에 저장해놓은 설정 불러오기.
+    // ex: storage = local / sync
+    // show Toolbar togglebutton
   }, []);
 
   const activeButton = () => {
@@ -50,27 +33,25 @@ const Popup = () => {
 
   const deleteAllHistory = () => {
     chrome.runtime.sendMessage({ action: "deleteAllHistory" }, (response) => {
-      console.log("deleteAllHistory", response);
       modalRef.current?.close();
     });
   };
 
-  const downloadHistory = () => {
+  const downloadHistoryToTxt = () => {
     chrome.storage.local.get("history", (result) => {
       const texts = result.history?.data?.join(", ") || "";
-      console.log("Download text:", texts);
 
       const blob = new Blob([texts], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
 
+      const filename = "history_backup.txt";
       chrome.downloads.download(
         {
           url,
-          filename: "history_backup.txt",
+          filename: filename,
           saveAs: true,
         },
         (downloadId) => {
-          console.log("Download started with ID:", downloadId);
           URL.revokeObjectURL(url);
         }
       );
@@ -95,7 +76,6 @@ const Popup = () => {
         if (chrome.runtime.lastError) {
           console.error("Restore failed:", chrome.runtime.lastError);
         } else {
-          console.log("Restore complete:", textList);
         }
       });
     };
@@ -114,11 +94,15 @@ const Popup = () => {
           Toggle Toolbar
         </button>
 
+        <button onClick={() => chrome.runtime.sendMessage({ action: "toggle_side_panel_visibility" })}>
+          Show Download History
+        </button>
+
         <button onClick={clickDeleteButton} disabled={isLoading}>
           저장된 history 모두 삭제
         </button>
 
-        <button onClick={downloadHistory} disabled={isLoading}>
+        <button onClick={downloadHistoryToTxt} disabled={isLoading}>
           Download History
         </button>
 

@@ -1,12 +1,20 @@
 // services/Observer.ts
+export enum ElementTypes {
+  VIDEO = 'VIDEO',
+  SHORTS = 'SHORTS',
+  PLAYLIST = 'PLAYLIST',
+  SEARCH = 'SEARCH',
+  MAIN = 'MAIN',
+}
+
 export class Observer {
   private observer: MutationObserver | null = null;
-  private readonly MAIN_PAGE_URL = 'https://www.youtube.com/';
 
-  constructor(private readonly onElementFound: (element: Element, isShorts: boolean, isVideoPlayer: boolean) => void) {}
+  constructor(private readonly onElementFound: (element: Element, elementType: ElementTypes) => void) {}
 
   public init(): void {
     const targetElement = document.querySelector('ytd-app > #content > ytd-page-manager#page-manager');
+
     if (!targetElement) {
       setTimeout(() => this.init(), 1000);
       return;
@@ -17,9 +25,7 @@ export class Observer {
   }
 
   private scanForExistingElements(targetElement: Element): void {
-    targetElement.querySelectorAll('yt-image, ytd-player, ytm-shorts-lockup-view-model-v2').forEach(element => {
-      this.processElement(element);
-    });
+    this.findElements(targetElement);
   }
 
   private setupObserver(targetElement: Element): void {
@@ -28,11 +34,12 @@ export class Observer {
         if (mutation.type === 'childList') {
           mutation.addedNodes.forEach(node => {
             if (node.nodeType === Node.ELEMENT_NODE) {
-              this.processNode(node as Element);
+              const tagName = (node as Element).tagName;
+              const validName = ['YTD-RICH-ITEM-RENDERER', 'YTD-RICH-SECTION-RENDERER', 'YTD-VIDEO-RENDERER', 'YTD-REEL-SHELF-RENDERER', 'YTD-WATCH-FLEXY', 'YTD-SHORTS']
+              if (!validName.includes(tagName)) return;
+              this.findElements(node as Element);
             }
           });
-        } else if (mutation.type === 'attributes') {
-          this.processElement(mutation.target as Element);
         }
       });
     });
@@ -40,36 +47,41 @@ export class Observer {
     this.observer.observe(targetElement, {
       childList: true,
       subtree: true,
-      attributes: true,
-      attributeFilter: ['src', 'href', 'style'],
     });
-
-    setTimeout(() => this.disconnect(), 50000);
   }
 
-  private processNode(node: Element): void {
-    // Check the node itself and its descendants
-    const elements = [node, ...Array.from(node.querySelectorAll('yt-image, ytd-player, ytm-shorts-lockup-view-model-v2'))];
-    elements.forEach(element => this.processElement(element));
-  }
-
-  private processElement(element: Element): void {
-    const tagName = element.tagName.toLowerCase();
-    switch (tagName) {
-      case 'yt-image':
-        this.onElementFound(element, false, false);
-        break;
-      case 'ytm-shorts-lockup-view-model-v2':
-        if (window.location.href === this.MAIN_PAGE_URL) {
-          const child = element.querySelector('div');
-          if (child) this.onElementFound(child, true, false);
+  private findElements(node: Element): void {
+    const url = window.location.href;
+    // 1. 메인 페이지
+    if (url === 'https://www.youtube.com/') {
+        node.querySelectorAll('ytd-rich-item-renderer ytd-thumbnail > a#thumbnail, ytd-rich-section-renderer ytd-rich-item-renderer ytm-shorts-lockup-view-model > a, ytd-rich-item-renderer > div#content > yt-lockup-view-model > div > a')
+            .forEach(el => this.onElementFound(el, ElementTypes.MAIN));
+    }
+    // 2. 검색 페이지
+    else if (url.includes('/results?')) {
+        node.querySelectorAll('ytd-video-renderer > div#dismissible > ytd-thumbnail > a#thumbnail, ytd-reel-shelf-renderer ytm-shorts-lockup-view-model-v2 > ytm-shorts-lockup-view-model > a, yt-lockup-view-model > div > a')
+            .forEach(el => this.onElementFound(el, ElementTypes.SEARCH));
+    }
+    // 3. 동영상 단일 페이지
+    else if (url.includes('/watch?')) {
+      console.log('동영상 단일 페이지.')
+        const videoElement = document.querySelector('ytd-watch-flexy[video-id]');
+        if (videoElement) {
+          console.log('videoElement', videoElement)
+          this.onElementFound(videoElement, ElementTypes.VIDEO);
+        } else {
+          console.log('동영상 발견 못함.')
         }
-        break;
-      case 'ytd-player':
-        if (window.location.href !== this.MAIN_PAGE_URL) {
-            this.onElementFound(element, false, true);
-        }
-        break;
+    }
+    // 4. 숏츠 단일 페이지
+    else if (url.includes('/shorts/')) {
+        const shortsElement = document.querySelector('ytd-shorts > div#shorts-container ytd-reel-video-renderer#reel-video-renderer ytd-player#player a.ytp-title-link');
+        if (shortsElement) this.onElementFound(shortsElement, ElementTypes.SHORTS);
+    }
+    // 5. 재생목록 페이지
+    else if (url.includes('/feed/playlists')) {
+        node.querySelectorAll('ytd-rich-item-renderer > div#content > yt-lockup-view-model > div > a')
+            .forEach(el => this.onElementFound(el, ElementTypes.PLAYLIST));
     }
   }
 

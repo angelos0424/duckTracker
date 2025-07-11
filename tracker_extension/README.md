@@ -68,3 +68,6 @@ Load `dist` directory
 
 ## Test
 `npx jest` or `npm run test`
+
+## Todo
+1. Popup.tsx

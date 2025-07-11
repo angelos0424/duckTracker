@@ -11,36 +11,46 @@ export class ToolbarService {
     toolbars.forEach(toolbar => toolbar.remove());
   }
 
-  public static createToolbar(item: Element, urlId: string, isVideo: boolean): void {
-    console.log('createToolbar called:', { item, urlId, isVideo });
+  public static createToolbar(item: Element, urlId: string, isVideo: boolean, isPlayList: boolean): void {
     if (!urlId) {
-      console.log('createToolbar - urlId is empty, returning.');
       return;
     }
-    const parentSelector = isVideo ? '#player' : 'div#content';
-    console.log('createToolbar - parentSelector:', parentSelector);
-    const parent = item.closest(parentSelector);
-    console.log('createToolbar - parent found:', parent);
 
-    if (!parent) {
-      console.log('createToolbar - Parent not found, returning.');
-      return;
+    let parent;
+    if (!isPlayList) { // shorts 포함.
+      const isSearch = window.location.href.startsWith('https://www.youtube.com/results?');
+      const isShorts = urlId.includes('/shorts/');
+      const parentSelector = isSearch ? 'ytd-video-renderer' : isVideo ? '#player' : isShorts ? 'ytm-shorts-lockup-view-model-v2' : 'div#content';
+
+      console.log('createToolbar', urlId, isVideo, isPlayList, isSearch, isShorts, parentSelector)
+      if (isVideo) {
+        // 비디오 단일 페이지 일 경우, ytd-watch-flexy가 element로 넘어옴.
+        parent = item.querySelector(parentSelector)
+      } else {
+        parent = item.closest(parentSelector); // main이 아니고 다른 경로, search 같은 경우는 parentSelecor
+      }
+
+      if (isShorts) {
+        console.log('shorts parent', parent);
+      }
+
+    } else {
+      parent = item.closest('yt-lockup-view-model > div');
     }
-    if (parent.querySelector(`.${this.TOOLBAR_CLASS}`)) {
-      console.log('createToolbar - Toolbar already exists in parent, returning.');
+
+    if (!parent || parent.querySelector(`.${this.TOOLBAR_CLASS}`)) {
       return;
     }
 
     const toolbar = this.createToolbarElement();
-    this.renderToolbarContent(toolbar, urlId);
+    this.renderToolbarContent(toolbar, urlId, isPlayList);
     parent.prepend(toolbar);
-    console.log('Toolbar created and prepended.');
+    console.log('toolbar 추가 완료')
   }
 
   private static createToolbarElement(): HTMLDivElement {
     const div = document.createElement('div');
     div.className = this.TOOLBAR_CLASS;
-    
 
     this.attachEventHandlers(div);
     return div;
@@ -56,8 +66,8 @@ export class ToolbarService {
     element.onmouseover = preventDefault;
   }
 
-  private static renderToolbarContent(element: HTMLElement, urlId: string): void {
+  private static renderToolbarContent(element: HTMLElement, urlId: string, isPlayList: boolean): void {
     const root = createRoot(element);
-    root.render(React.createElement(TrackToolbar, { urlId }));
+    root.render(React.createElement(TrackToolbar, { urlId, isPlayList }));
   }
 }

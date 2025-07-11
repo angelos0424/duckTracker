@@ -3,11 +3,14 @@ import cors from 'cors';
 import YTDlpWrap from 'yt-dlp-wrap';
 import { WebSocket, WebSocketServer } from 'ws';
 import { DownloadRequest, DownloadResponse, VideoInfo, ServerConfig } from './types';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 
 const config: ServerConfig = {
-  port: 3000,
+  port: parseInt(process.env.PORT || '3000', 10),
   corsOrigins: [
     'chrome-extension://*',
     'moz-extension://*',
@@ -79,18 +82,12 @@ app.post('/api/info', async (req: Request, res: Response<VideoInfo | { error: st
 
 // 다운로드 엔드포인트
 app.post('/api/download', async (req: Request, res: Response<DownloadResponse>) => {
+  const { urlId } : DownloadRequest = req.body;
+
   try {
-    // const { urlId, options = [], format = 'best', quality }: DownloadRequest = req.body;
-
-    const { urlId } : DownloadRequest = req.body;
     if (!urlId) {
-      console.error("!!!URL ", req.body);
+      console.log("!!!URL ", req.body);
     }
-
-    // check download list
-
-    console.log('urlId ---------------', urlId, activeDownloads.size);
-    console.log('check file ', activeDownloads.has(urlId));
 
     if (activeDownloads.has(urlId)) {
       console.error("다운로드 중인 파일입니두")
@@ -118,20 +115,7 @@ app.post('/api/download', async (req: Request, res: Response<DownloadResponse>) 
       });
     }
 
-    console.log("set activeDownloads.");
-
-    const downloadOptions = [
-      url,
-      '-f',
-    ];
-
-    // if (quality) {
-    //   downloadOptions.push('--format', `best[height<=${quality}]`);
-    // }
-
     try {
-      // const result = await ytDlpWrap.execPromise(downloadOptions);
-
       let ytDlpEventEmitter = ytDlpWrap.exec([
         url,
         '-f',
@@ -140,39 +124,48 @@ app.post('/api/download', async (req: Request, res: Response<DownloadResponse>) 
         '-P',
         '/Users/windows11/Downloads'
 
-
       ])
       .on('progress', progress => {
-        // console.log(progress.percent, progress.totalSize, progress.currentSpeed, progress.eta)
+        console.log(progress.percent, progress.totalSize, progress.currentSpeed, progress.eta)
       })
       .on('ytDlpEvent', (eventType, eventData) => {
         console.log("ytDlpEvent", eventType, eventData);
       })
       .on('error', (error) => {
-        console.error(error)
-        console.log(url)
-        res.json({
-          success: false,
-        })
+        console.error('Download process error:', error);
+        activeDownloads.delete(urlId);
+        if (!res.headersSent) {
+          res.status(500).json({
+            success: false,
+            error: 'Failed during download process.'
+          });
+        }
       })
       .on('close', () => {
-        activeDownloads.delete(urlId)
+        activeDownloads.delete(urlId);
         console.log('Download complete', urlId);
-        res.json({
-          success: true,
-        })
+        if (!res.headersSent) {
+          res.json({
+            success: true,
+          });
+        }
       });
 
-      // res.json({
-      //   success: true,
-      //   result: result.trim()
-      // });
-      console.log('****', ytDlpEventEmitter.ytDlpProcess?.pid);
-    } finally {
+      console.log('Download process started with PID:', ytDlpEventEmitter.ytDlpProcess?.pid);
+
+    } catch (error) {
       activeDownloads.delete(urlId);
+      console.error('Failed to start download process:', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to start download'
+        });
+      }
     }
   } catch (error) {
     console.error('Download error:', error);
+    activeDownloads.delete(urlId);
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Download failed'
@@ -191,38 +184,120 @@ app.get('/api/downloads', (req: Request, res: Response) => {
 // WebSocket 서버 설정
 const wss = new WebSocketServer({ port: 8080 });
 
+interface ResponseMessage {
+  status: string;
+  url?: string;
+  error?: string;
+  title?: string;
+  percent?: number;
+}
+
 wss.on('connection', (ws: WebSocket) => {
-  console.log('Extension connected via WebSocket');
-
+  const msg: ResponseMessage = {
+    status: ''
+  };
   ws.on('message', async (message: Buffer) => {
+    const data = JSON.parse(message.toString()) as {
+      action: string;
+      url: string;
+      urlId: string;
+      options?: string[];
+    };
+    console.log('Received message:', data);
+
+    msg.url = data.url;
+
+    if (data.action !== 'download' || !data.url) {
+      return ws.send(JSON.stringify({
+        status: 'error',
+        error: 'Invalid request. Action must be "download" and URL must be provided.'
+      }));
+    }
+
+    // URL에서 videoId 추출 (YouTube URL 형식 가정)
+    const urlId = data.urlId;
+
+    if (!urlId) {
+      return ws.send(JSON.stringify({
+        status: 'error',
+        error: 'UrlId is required. Please try again.'
+      }));
+    }
+
+    // 동시 다운로드 제한 체크
+    if (activeDownloads.size >= config.maxConcurrentDownloads) {
+      return ws.send(JSON.stringify({
+        status: 'error',
+        url: data.url,
+        error: 'Too many concurrent downloads. Please try again later.'
+      }));
+    }
+
+    // 이미 다운로드 중인 파일인지 체크
+    if (activeDownloads.has(urlId)) {
+      return ws.send(JSON.stringify({
+        status: 'error',
+        url: data.url,
+        error: 'This video is already being downloaded.'
+      }));
+    }
+
+    activeDownloads.set(urlId, true);
+    ws.send(JSON.stringify({ status: 'started', urlId: urlId }));
+
+    const downloadOption = [
+      data.url,
+      '-f',
+      process.env.FORMAT || 'bv*[height>=1080][ext=webm]+ba*[ext=webm]/bv*[height>=720][ext=webm]+ba*[ext=webm]/bv*[ext=mp4]+ba*[ext=m4a]/bv*[ext=mp4]+ba*[ext=aac]/best',
+      '-P',
+      process.env.OUTPUT_PATH || '/Users/windows11/Downloads', // 참고: 다운로드 경로는 필요에 따라 수정하세요.
+      ...(data.options || [])
+    ]
+
     try {
-      const data = JSON.parse(message.toString()) as {
-        action: string;
-        url: string;
-        options?: string[];
-      };
-
-      if (data.action === 'download') {
+      ytDlpWrap.exec(downloadOption)
+      .on('ytDlpEvent', (eventType, eventData) => {
+        console.log("ytDlpEvent", eventType, eventData);
+        if (eventType === 'download') {
+          msg.status = 'progress';
+          console.log('progress...', msg)
+          if (eventData.startsWith(' Destination')) {
+            // get title
+            const title = eventData.split(` Destination: ${downloadOption[4]}/`)[1]
+            msg.title = title;
+            console.log('title...', msg, downloadOption[4])
+            ws.send(JSON.stringify(msg));
+          } else {
+            const percent = eventData.split('%')[0];
+            msg.percent = parseInt(percent);
+            ws.send(JSON.stringify({...msg}));
+          }
+        }
+      })
+      .on('error', (error) => {
+        console.error('Download process error:', error);
+        activeDownloads.delete(urlId);
         ws.send(JSON.stringify({
-          status: 'started',
-          url: data.url
+          status: 'error',
+          url: data.url,
+          error: error.message || 'Failed during download process.'
         }));
-
-        const result = await ytDlpWrap.execPromise([
-          data.url,
-          '--format', 'best',
-          ...(data.options || [])
-        ]);
-
+      })
+      .on('close', () => {
+        console.log('Download complete:', data.url);
+        activeDownloads.delete(urlId);
         ws.send(JSON.stringify({
           status: 'completed',
-          result: result.trim()
+          url: data.url
         }));
-      }
+      });
     } catch (error) {
+      console.error('Failed to start download process:', error);
+      activeDownloads.delete(urlId);
       ws.send(JSON.stringify({
         status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        url: data.url,
+        error: error instanceof Error ? error.message : 'Failed to start download'
       }));
     }
   });
