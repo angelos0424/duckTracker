@@ -1,0 +1,63 @@
+{
+  "applicationId": "js.neutralino.zero",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "documentRoot": "/react-src/build/",
+  "url": "/",
+  "logging": {
+    "enabled": true,
+    "writeToLogFile": true
+  },
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "enableExtensions": true,
+  "extensions": [
+    {
+      "id": "js.node-neutralino.projectRunner"
+    }
+  ],
+  "nativeAllowList": [
+    "app.*",
+    "window.*",
+    "os.open",
+    "os.execCommand",
+    "events.*",
+    "extensions.*",
+    "clipboard.readText",
+    "clipboard.getFormat",
+    "clipboard.writeText"
+  ],
+  "modes": {
+    "window": {
+      "title": "testApp",
+      "width": 800,
+      "height": 500,
+      "minWidth": 400,
+      "minHeight": 200,
+      "icon": "/react-src/public/logo192.png",
+      "enableInspector": true
+    }
+  },
+  "cli": {
+    "binaryName": "testApp",
+    "extensionsPath": "/extensions/",
+    "resourcesPath": "/react-src/build/",
+    "frontendLibrary": {
+      "patchFile": "/react-src/build/index.html",
+      "devUrl": "http://localhost:3000",
+      "projectPath": "/react-src/",
+      "initCommand": "npm install",
+      "devCommand": "npm run start",
+      "buildCommand": "npm run build",
+      "waitTimeout": 40000
+    },
+    "hostProject": {
+      "projectPath": "/",
+      "buildPath": "./node-src/dist/",
+      "initCommand": "npm run runner:install",
+      "devCommand": "npm run runner:dev",
+      "buildCommand": "npm run runner:build"
+    },
+    "binaryVersion": "6.2.0"
+  }
+}

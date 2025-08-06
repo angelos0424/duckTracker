@@ -1,0 +1,27 @@
+# Developer tools' files
+.lite_workspace.lua
+
+
+# Mac OS
+.DS_Store
+
+# Neutralinojs binaries and builds
+bin
+dist
+.tmp
+.github
+.idea
+#
+# Neutralinojs client (minified)
+ neutralino.js
+
+# Neutralinojs related files
+.storage
+*.log
+
+node_modules
+
+.tmp
+
+/node-src
+/data
