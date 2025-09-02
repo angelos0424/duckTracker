@@ -6,13 +6,10 @@ server/*
 server/.DS_Store
 server/**/*
 
-tracker_extension/dist
-tracker_extension/node_modules
-tracker_extension/.DS_Store
-tracker_extension/src/.DS_Store
-
-
-
+chrome_extension/dist
+chrome_extension/node_modules
+chrome_extension/.DS_Store
+chrome_extension/src/.DS_Store
 
 
 # gemini-cli settings
