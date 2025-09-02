@@ -59,6 +59,8 @@ jobs:
           ISSUE_BODY: '${{ github.event.pull_request.body || github.event.issue.body }}'
           PULL_REQUEST_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
           REPOSITORY: '${{ github.repository }}'
+          OWNER: '${{ github.repository_owner }}'
+          REPO: '${{ github.event.repository.name }}'
           ADDITIONAL_CONTEXT: '${{ inputs.additional_context }}'
         with:
           gemini_cli_version: '${{ vars.GEMINI_CLI_VERSION }}'
@@ -88,7 +90,9 @@ jobs:
                     "-e",
                     "GITHUB_PERSONAL_ACCESS_TOKEN",
                     "-e",
-                    "REPOSITORY",
+                    "OWNER",
+                    "-e",
+                    "REPO",
                     "ghcr.io/github/github-mcp-server"
                   ],
                   "includeTools": [
@@ -101,7 +105,8 @@ jobs:
                   ],
                   "env": {
                     "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}",
-                    "REPOSITORY": "${REPOSITORY}"
+                    "OWNER": "${OWNER}",
+                    "REPO": "${REPO}"
                   }
                 }
               },
@@ -144,6 +149,8 @@ jobs:
             ## Input Data
 
             - Retrieve the GitHub repository name from the environment variable "${REPOSITORY}".
+            - Retrieve the GitHub repository owner from the environment variable "${OWNER}".
+            - Retrieve the GitHub repository name from the environment variable "${REPO}".
             - Retrieve the GitHub pull request number from the environment variable "${PULL_REQUEST_NUMBER}".
             - Retrieve the additional user instructions and context from the environment variable "${ADDITIONAL_CONTEXT}".
             - Use `mcp__github__get_pull_request` to get the title, body, and metadata about the pull request.
