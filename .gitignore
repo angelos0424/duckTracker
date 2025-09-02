@@ -1,0 +1,27 @@
+.DS_Store
+.idea
+.vscode
+**/.env
+server/*
+server/.DS_Store
+server/**/*
+
+tracker_extension/dist
+tracker_extension/node_modules
+tracker_extension/.DS_Store
+tracker_extension/src/.DS_Store
+
+
+
+
+
+# gemini-cli settings
+.gemini/
+
+# Github App credentials
+gha-creds-*.json
+
+electron-app/.electron-cache/
+electron-app.zip
+electron-app/resources/*
+electron-app/release/*

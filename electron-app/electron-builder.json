@@ -1,0 +1,164 @@
+{
+  "appId": "com.youtubedownloader.desktop",
+  "productName": "YouTube Downloader",
+  "copyright": "Copyright © 2025 YouTube Downloader Team",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "node_modules/**/*"
+  ],
+  "beforePack": "scripts/before-build.js",
+  "afterPack": "scripts/after-pack.js",
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64", "ia32"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64", "ia32"]
+      }
+    ],
+    "icon": "assets/icon.png",
+    "requestedExecutionLevel": "asInvoker",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "ytdl",
+        "name": "YouTube Download Link",
+        "description": "YouTube Download Link File",
+        "mimeType": "application/x-youtube-download",
+        "role": "Editor"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "youtube-downloader",
+        "schemes": ["ytdl"]
+      }
+    ]
+  },
+  "mac": {
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "icon": "assets/icon.icns",
+    "category": "public.app-category.utilities",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "identity": null,
+    "notarize": false,
+    "type": "development",
+    "bundleVersion": "1.0.0",
+    "minimumSystemVersion": "10.15.0",
+
+    "extraResources": [
+      {
+        "from": "resources/yt-dlp-macos",
+        "to": "resources/yt-dlp"
+      },
+      {
+        "from": "resources/ffmpeg",
+        "to": "ffmpeg"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": "ytdl",
+        "name": "YouTube Download Link",
+        "description": "YouTube Download Link File",
+        "mimeType": "application/x-youtube-download",
+        "role": "Editor"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "youtube-downloader",
+        "schemes": ["ytdl"]
+      }
+    ]
+  },
+  "asarUnpack": [
+    "**/node_modules/yt-dlp-wrap/**/*",
+    "**/node_modules/better-sqlite3/**/*"
+  ],
+  "asar": true,
+  "dmg": {
+    "title": "${productName} ${version}",
+    "icon": "assets/icon.icns",
+    "iconSize": 100,
+    "contents": [
+      {
+        "x": 380,
+        "y": 280,
+        "type": "link",
+        "path": "/Applications"
+      },
+      {
+        "x": 110,
+        "y": 280,
+        "type": "file"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    },
+    "backgroundColor": "#ffffff",
+    "internetEnabled": false,
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
+    
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "YouTube Downloader",
+    
+    "displayLanguageSelector": false,
+    
+    "language": "1033",
+    "runAfterFinish": false,
+    "menuCategory": "Multimedia",
+    "guid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  },
+  "portable": {
+    "artifactName": "${productName}-${version}-portable.${ext}",
+    "requestExecutionLevel": "user"
+  },
+  "compression": "maximum",
+  "removePackageScripts": true,
+  "nodeGypRebuild": false,
+  "buildDependenciesFromSource": false,
+  "electronDownload": {
+    "cache": ".electron-cache"
+  },
+  "publish": null,
+  "forceCodeSigning": false,
+  "electronVersion": "28.2.0",
+  "npmRebuild": true
+}

@@ -1,0 +1,610 @@
+.download-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.download-history-header h2 {
+  margin: 0;
+  font-size: 1.8em;
+  color: var(--text-color-primary);
+}
+
+.download-count {
+  margin-left: 10px;
+  font-size: 1.1em;
+  color: var(--text-color-secondary);
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.add-download-button,
+.refresh-button,
+.delete-selected-button {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--button-border);
+  padding: 8px 15px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.add-download-button {
+  font-size: 1.5em;
+  padding: 5px 12px;
+  line-height: 1;
+}
+
+.add-download-button:hover,
+.refresh-button:hover {
+  background-color: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
+}
+
+.delete-selected-button {
+  background-color: var(--danger-color);
+  border-color: var(--danger-color);
+  color: white;
+}
+
+.delete-selected-button:hover {
+  background-color: var(--danger-color-hover);
+  border-color: var(--danger-color-hover);
+}
+
+.filter-controls {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-controls label {
+  font-weight: bold;
+  color: var(--text-color-primary);
+}
+
+.status-select {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--input-bg);
+  color: var(--text-color-primary);
+  font-size: 1em;
+  min-width: 150px;
+}
+
+.download-list {
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.download-table-container {
+  overflow-x: auto;
+}
+
+.download-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.download-table th,
+.download-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.download-table th {
+  background-color: var(--header-bg);
+  color: var(--text-color-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.9em;
+  cursor: pointer;
+  position: relative;
+}
+
+.download-table th:hover {
+  background-color: var(--header-bg-hover);
+}
+
+.download-table td {
+  color: var(--text-color-primary);
+  vertical-align: middle;
+}
+
+.download-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.download-table tbody tr:hover {
+  background-color: var(--hover-bg);
+}
+
+.checkbox-column {
+  width: 40px;
+  text-align: center;
+}
+
+.id-column {
+  width: 60px;
+}
+
+.status-column {
+  width: 120px;
+}
+
+.progress-column {
+  width: 100px;
+}
+
+.date-column {
+  width: 150px;
+}
+
+.duration-column {
+  width: 100px;
+}
+
+.actions-column {
+  width: 150px;
+  text-align: center;
+}
+
+.select-all-checkbox,
+.select-item-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+.sortable-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sort-icon {
+  margin-left: 5px;
+  font-size: 0.8em;
+  opacity: 0.6;
+}
+
+.sort-icon.active {
+  opacity: 1;
+}
+
+.no-downloads {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--text-color-secondary);
+}
+
+.no-downloads-icon {
+  font-size: 4em;
+  margin-bottom: 15px;
+}
+
+.no-downloads p {
+  margin: 5px 0;
+  font-size: 1.2em;
+}
+
+.no-downloads-subtitle {
+  font-size: 0.9em;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee
+}
+
+.pagination-button {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--button-border);
+  padding: 8px 15px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.pagination-button:hover:not(:disabled) {
+  background-color: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
+}
+
+.pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 1em;
+  color: var(--text-color-primary);
+}
+
+
+
+/* Status Filter Buttons */
+.status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.status-filter-button {
+  background-color: var(--card-bg);
+  color: var(--text-color-primary);
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-filter-button:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+
+.status-filter-button.active {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.4);
+}
+
+.status-filter-button.active .badge {
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.badge {
+  background-color: var(--badge-bg);
+  color: var(--badge-text);
+  padding: 3px 7px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: 600;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* DownloadItem specific styles (if not already in DownloadItem.css) */
+.download-item-status-completed { color: var(--success-color); }
+.download-item-status-failed { color: var(--danger-color); }
+.download-item-status-downloading { color: var(--info-color); }
+.download-item-status-pending { color: var(--warning-color); }
+.download-item-status-cancelled { color: var(--text-color-secondary); }
+.download-item-status-queued { color: var(--text-color-secondary); }
+
+.download-item-actions button {
+  background: none;
+  border: none;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font-size: 1.1em;
+  margin: 0 5px;
+  transition: color 0.2s ease;
+}
+
+.download-item-actions button:hover {
+  color: var(--accent-color);
+}
+
+.download-item-actions .delete-button:hover {
+  color: var(--danger-color);
+}
+
+.download-item-actions .retry-button:hover {
+  color: var(--info-color);
+}
+
+.download-item-actions .open-file-button:hover {
+  color: var(--success-color);
+}
+
+.download-item-progress-bar-container {
+  background-color: var(--progress-bar-bg);
+  border-radius: 5px;
+  height: 8px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.download-item-progress-bar {
+  height: 100%;
+  background-color: var(--accent-color);
+  border-radius: 5px;
+  transition: width 0.3s ease-in-out;
+}
+
+/* ConfirmDialog styles */
+.confirm-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.confirm-dialog-content {
+  background-color: var(--background-color);
+  padding: 30px;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 90%;
+  max-width: 450px;
+  text-align: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.confirm-dialog-icon {
+  font-size: 3em;
+  margin-bottom: 15px;
+}
+
+.confirm-dialog-icon.warning { color: var(--warning-color); }
+.confirm-dialog-icon.danger { color: var(--danger-color); }
+.confirm-dialog-icon.info { color: var(--info-color); }
+
+.confirm-dialog-title {
+  font-size: 1.8em;
+  color: var(--text-color-primary);
+  margin-bottom: 10px;
+}
+
+.confirm-dialog-message {
+  font-size: 1.1em;
+  color: var(--text-color-secondary);
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.confirm-dialog-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
+.confirm-dialog-buttons button {
+  padding: 12px 25px;
+  border-radius: var(--border-radius);
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.confirm-dialog-buttons .cancel-button {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--button-border);
+}
+
+.confirm-dialog-buttons .cancel-button:hover {
+  background-color: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
+}
+
+.confirm-dialog-buttons .confirm-button {
+  background-color: var(--accent-color);
+  color: white;
+  border: 1px solid var(--accent-color);
+}
+
+.confirm-dialog-buttons .confirm-button.danger {
+  background-color: var(--danger-color);
+  border-color: var(--danger-color);
+}
+
+.confirm-dialog-buttons .confirm-button:hover {
+  opacity: 0.9;
+}
+
+/* UrlInputDialog styles */
+.url-input-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.url-input-dialog-content {
+  background-color: var(--background-color);
+  padding: 30px;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 90%;
+  max-width: 500px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.url-input-dialog-title {
+  font-size: 1.8em;
+  color: var(--text-color-primary);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.url-input-dialog-input-group {
+  margin-bottom: 20px;
+}
+
+.url-input-dialog-input-group label {
+  display: block;
+  font-size: 1em;
+  color: var(--text-color-secondary);
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.url-input-dialog-input-group input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: var(--input-bg);
+  color: var(--text-color-primary);
+  font-size: 1em;
+  box-sizing: border-box;
+}
+
+.url-input-dialog-input-group input[type="text"]::placeholder {
+  color: var(--text-color-placeholder);
+}
+
+.url-input-dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.url-input-dialog-buttons button {
+  padding: 10px 20px;
+  border-radius: var(--border-radius);
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.url-input-dialog-buttons .cancel-button {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--button-border);
+}
+
+.url-input-dialog-buttons .cancel-button:hover {
+  background-color: var(--button-bg-hover);
+  border-color: var(--button-border-hover);
+}
+
+.url-input-dialog-buttons .confirm-button {
+  background-color: var(--accent-color);
+  color: white;
+  border: 1px solid var(--accent-color);
+}
+
+.url-input-dialog-buttons .confirm-button:hover {
+  opacity: 0.9;
+}
+
+/* General styles */
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background-color);
+  color: var(--text-color-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Variables for theming */
+:root {
+  --background-color: #f0f2f5;
+  --card-bg: #ffffff;
+  --header-bg: #e9ecef;
+  --header-bg-hover: #e0e3e7;
+  --border-color: #e0e0e0;
+  --text-color-primary: #333333;
+  --text-color-secondary: #666666;
+  --text-color-placeholder: #aaaaaa;
+  --button-bg: #e0e0e0;
+  --button-bg-hover: #d0d0d0;
+  --button-border: #cccccc;
+  --button-border-hover: #bbbbbb;
+  --button-text: #333333;
+  --accent-color: #007bff;
+  --accent-color-rgb: 0, 123, 255;
+  --success-color: #28a745;
+  --danger-color: #dc3545;
+  --danger-color-hover: #c82333;
+  --warning-color: #ffc107;
+  --info-color: #17a2b8;
+  --hover-bg: #f8f9fa;
+  --progress-bar-bg: #e9ecef;
+  --badge-bg: #e9ecef;
+  --badge-text: #666666;
+
+  --border-radius: 6px;
+  --border-radius-lg: 10px;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme */
+body.dark-theme {
+  --background-color: #2c2c2c;
+  --card-bg: #3c3c3c;
+  --header-bg: #4a4a4a;
+  --header-bg-hover: #5a5a5a;
+  --border-color: #505050;
+  --text-color-primary: #e0e0e0;
+  --text-color-secondary: #b0b0b0;
+  --text-color-placeholder: #888888;
+  --button-bg: #505050;
+  --button-bg-hover: #606060;
+  --button-border: #707070;
+  --button-border-hover: #808080;
+  --button-text: #e0e0e0;
+  --accent-color: #61dafb; /* A lighter blue for dark theme */
+  --accent-color-rgb: 97, 218, 251;
+  --success-color: #4CAF50;
+  --danger-color: #f44336;
+  --danger-color-hover: #d32f2f;
+  --warning-color: #ffeb3b;
+  --info-color: #03a9f4;
+  --hover-bg: #444444;
+  --progress-bar-bg: #505050;
+  --badge-bg: #505050;
+  --badge-text: #e0e0e0;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

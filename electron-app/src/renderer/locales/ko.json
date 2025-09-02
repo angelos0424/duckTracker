@@ -1,0 +1,58 @@
+{
+  "settings": {
+    "title": "설정",
+    "save_changes": "변경사항 저장",
+    "reset_to_defaults": "기본값으로 재설정",
+    "language": "언어",
+    "sections": {
+      "downloads": {
+        "title": "다운로드 설정",
+        "directory": "다운로드 디렉토리",
+        "directory_placeholder": "다운로드 폴더 선택...",
+        "directory_help": "다운로드한 비디오를 저장할 위치를 선택하세요",
+        "quality": "비디오 품질",
+        "quality_help": {
+          "best": "사용 가능한 최고 품질",
+          "1080p": "1920x1080 해상도",
+          "720p": "1280x720 해상도",
+          "480p": "854x480 해상도"
+        },
+        "concurrent": "최대 동시 다운로드 수",
+        "concurrent_help": "동시에 다운로드할 수 있는 비디오 수 (1-10)",
+        "output_template": "다운로드 파일 이름 규칙",
+        "output_template_placeholder": "%(title)s [%(id)s].%(ext)s",
+        "output_template_help": "기본 템플릿: %(title)s [%(id)s].%(ext)s"
+      },
+      "server": {
+        "title": "서버 구성",
+        "port": "서버 포트",
+        "port_help": "서버용 포트 (1024-65535)"
+      },
+      "application": {
+        "title": "애플리케이션 동작",
+        "minimize_to_tray": "시스템 트레이로 최소화",
+        "minimize_to_tray_help": "메인 창을 닫을 때 시스템 트레이로 숨기기",
+        "show_notifications": "데스크톱 알림 표시",
+        "show_notifications_help": "다운로드 완료 및 오류에 대한 알림 표시"
+      },
+      "dependencies": {
+        "title": "의존성",
+        "yt_dlp_version": "yt-dlp 버전",
+        "ffmpeg_version": "ffmpeg 버전",
+        "check_for_updates": "업데이트 확인",
+        "install_update": "설치/업데이트",
+        "installing": "설치 중...",
+        "managed_automatically": "자동으로 관리됨"
+      }
+    },
+    "dialogs": {
+      "save_confirm_title": "서버 재시작 필요",
+      "save_confirm_message": "서버 포트를 변경하려면 서버를 다시 시작해야 합니다. 활성 다운로드가 일시적으로 중단됩니다. 계속하시겠습니까?",
+      "save_confirm_button": "저장 및 재시작",
+      "reset_confirm_title": "설정 재설정",
+      "reset_confirm_message": "모든 설정을 기본값으로 재설정하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+      "reset_confirm_button": "설정 재설정",
+      "cancel_button": "취소"
+    }
+  }
+}

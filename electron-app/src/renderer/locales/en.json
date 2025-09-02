@@ -1,0 +1,58 @@
+{
+  "settings": {
+    "title": "Settings",
+    "save_changes": "Save Changes",
+    "reset_to_defaults": "Reset to Defaults",
+    "language": "Language",
+    "sections": {
+      "downloads": {
+        "title": "Download Settings",
+        "directory": "Download Directory",
+        "directory_placeholder": "Select download folder...",
+        "directory_help": "Choose where downloaded videos will be saved",
+        "quality": "Video Quality",
+        "quality_help": {
+          "best": "Highest quality available",
+          "1080p": "1920x1080 resolution",
+          "720p": "1280x720 resolution",
+          "480p": "854x480 resolution"
+        },
+        "concurrent": "Maximum Concurrent Downloads",
+        "concurrent_help": "Number of videos that can download simultaneously (1-10)",
+        "output_template": "Download File Name Rules",
+        "output_template_placeholder": "%(title)s [%(id)s].%(ext)s",
+        "output_template_help": "Default Template: %(title)s [%(id)s].%(ext)s"
+      },
+      "server": {
+        "title": "Server Configuration",
+        "port": "Server Port",
+        "port_help": "Port for server (1024-65535)"
+      },
+      "application": {
+        "title": "Application Behavior",
+        "minimize_to_tray": "Minimize to system tray",
+        "minimize_to_tray_help": "Hide to system tray when closing the main window",
+        "show_notifications": "Show desktop notifications",
+        "show_notifications_help": "Display notifications for download completion and errors"
+      },
+      "dependencies": {
+        "title": "Dependencies",
+        "yt_dlp_version": "yt-dlp Version",
+        "ffmpeg_version": "ffmpeg Version",
+        "check_for_updates": "Check for Updates",
+        "install_update": "Install/Update",
+        "installing": "Installing...",
+        "managed_automatically": "Managed Automatically"
+      }
+    },
+    "dialogs": {
+      "save_confirm_title": "Server Restart Required",
+      "save_confirm_message": "Changing server ports requires restarting the server. This will temporarily disconnect any active downloads. Do you want to continue?",
+      "save_confirm_button": "Save & Restart",
+      "reset_confirm_title": "Reset Settings",
+      "reset_confirm_message": "Are you sure you want to reset all settings to their default values? This action cannot be undone.",
+      "reset_confirm_button": "Reset Settings",
+      "cancel_button": "Cancel"
+    }
+  }
+}

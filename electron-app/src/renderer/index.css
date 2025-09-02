@@ -1,0 +1,443 @@
+/* Global Styles */
+:root {
+  --primary-color: #4a90e2;
+  --primary-hover-color: #357abd;
+  --danger-color: #d0021b;
+  --danger-hover-color: #a10215;
+  --warning-color: #f5a623;
+  --success-color: #7ed321;
+  --background-color: #f4f7f9;
+  --content-background-color: #ffffff;
+  --text-color: #333;
+  --text-light-color: #888;
+  --border-color: #e0e6ed;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --border-radius: 6px;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+body,
+html,
+#root {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  height: 100%;
+  overflow: hidden;
+}
+
+button {
+  font-family: var(--font-family);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius);
+  padding: 8px 16px;
+  font-size: 14px;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* App Layout */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: var(--background-color);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background-color: var(--content-background-color);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-left h1 {
+  font-size: 20px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.app-version {
+  font-size: 12px;
+  color: var(--text-light-color);
+  margin-left: 10px;
+  background-color: #eef2f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-actions button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-light-color);
+  padding: 4px;
+}
+
+.header-actions button:hover {
+  color: var(--text-color);
+}
+
+.app-tabs {
+  padding: 0 20px;
+  background-color: var(--content-background-color);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.tabs-container {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid transparent; /* For the indicator */
+}
+
+.tab {
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  font-size: 15px;
+  color: var(--text-light-color);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; /* Overlap the container border */
+}
+
+.tab.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.tab:hover {
+  color: var(--primary-color);
+}
+
+.tab-badge {
+  background-color: var(--primary-color);
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.app-content {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 0;
+  margin:0
+}
+
+.content-container {
+  /*max-width: 1200px;*/
+  margin: 0 auto;
+}
+
+/* Loading and Error States */
+.app-loading,
+.app-error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  text-align: center;
+}
+
+.loading-spinner {
+  font-size: 18px;
+  color: var(--text-light-color);
+}
+
+.app-error h2 {
+  color: var(--danger-color);
+}
+
+/* Server Status */
+.server-status-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.server-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--border-radius);
+  background-color: #eef2f5;
+  font-size: 13px;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-running .status-indicator {
+  background-color: var(--success-color);
+}
+.status-stopped .status-indicator {
+  background-color: var(--text-light-color);
+}
+.status-error .status-indicator {
+  background-color: var(--danger-color);
+}
+.status-unknown .status-indicator {
+  background-color: var(--warning-color);
+}
+
+.restart-server-button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-light-color);
+}
+
+
+
+/* Dialogs (Confirm, URL Input) */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog-container {
+  background-color: var(--content-background-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  width: 90%;
+  max-width: 450px;
+}
+
+.dialog-content {
+  padding: 24px;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dialog-icon {
+  font-size: 24px;
+}
+.dialog-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.dialog-body {
+  margin-bottom: 24px;
+}
+.dialog-message {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-light-color);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.dialog-button {
+  font-weight: 500;
+}
+.cancel-button {
+  background-color: #eef2f5;
+  border-color: #e0e6ed;
+  color: var(--text-color);
+}
+.cancel-button:hover {
+  background-color: #e0e6ed;
+}
+.confirm-button.danger {
+  background-color: var(--danger-color);
+  color: white;
+}
+.confirm-button.danger:hover {
+  background-color: var(--danger-hover-color);
+}
+.confirm-button.warning {
+  background-color: var(--warning-color);
+  color: white;
+}
+
+.url-input {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  margin-bottom: 16px;
+}
+
+/* Settings Page */
+.settings {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 24px;
+}
+.settings-header h2 {
+  margin: 0;
+  font-size: 24px;
+}
+.settings-actions .save-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+.settings-actions .reset-button {
+  background-color: transparent;
+  color: var(--danger-color);
+  border: 1px solid var(--danger-color);
+}
+
+.settings-section {
+  margin-bottom: 32px;
+  background-color: var(--content-background-color);
+  padding: 24px;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+}
+.settings-section h3 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.form-group input[type='text'],
+.form-group input[type='number'],
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+.form-group input.error {
+  border-color: var(--danger-color);
+}
+.form-help {
+  font-size: 12px;
+  color: var(--text-light-color);
+  margin-top: 6px;
+  display: block;
+}
+.form-error {
+  font-size: 12px;
+  color: var(--danger-color);
+  margin-top: 6px;
+}
+
+.folder-picker {
+  display: flex;
+}
+.folder-input {
+  flex-grow: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.folder-browse-button {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background-color: #eef2f5;
+  border: 1px solid var(--border-color);
+  border-left: none;
+  color: var(--text-color);
+}
+
+.checkbox-group .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dependency-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.dependency-item:last-child {
+  border-bottom: none;
+}
+.dependency-name {
+  font-weight: 500;
+}
+.dependency-version {
+  font-size: 13px;
+  color: var(--text-light-color);
+  background-color: #eef2f5;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 10px;
+}
+.dependency-actions {
+  display: flex;
+  gap: 10px;
+}
+.dependency-actions .action-button {
+  font-size: 14px;
+  padding: 6px 12px;
+  background-color: #eef2f5;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
