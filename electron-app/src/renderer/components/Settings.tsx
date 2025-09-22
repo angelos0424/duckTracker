@@ -4,17 +4,7 @@ import { useIPC } from '../hooks/useIPC';
 import { Box, Button, TextField, Select, MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Typography, Paper, Divider, Tooltip, IconButton } from '@mui/material';
 import Grid from '@mui/material/Grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import get from 'lodash.get';
-
-import './Settings.css';
-
-import enTranslations from '../locales/en.json';
-import koTranslations from '../locales/ko.json';
-
-const locales: Record<string, any> = {
-  en: enTranslations,
-  ko: koTranslations
-};
+import { useTranslation } from '../hooks/useTranslation';
 
 interface SettingsProps {
   settings: AppSettings;
@@ -27,15 +17,9 @@ interface SettingsProps {
 
 const Settings: React.FC<SettingsProps> = ({ settings, onSave, onReset, ytDlpVersion, ffmpegVersion, onRefreshVersions }) => {
   const [formSettings, setFormSettings] = React.useState<AppSettings>(settings);
-  const [translations, setTranslations] = React.useState<any>({});
   const [hasChanges, setHasChanges] = React.useState(false);
   const ipc = useIPC();
-
-  const t = (key: string, fallback?: string): string => get(translations, key, fallback || key);
-
-  React.useEffect(() => {
-    setTranslations(locales[formSettings.language] || {});
-  }, [formSettings.language]);
+  const { t } = useTranslation(formSettings.language);
 
   React.useEffect(() => {
     setFormSettings(settings);
@@ -84,12 +68,10 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, onReset, ytDlpVer
   };
 
   const handleInstallUpdate = async (dependency: 'yt-dlp' | 'ffmpeg') => {
-    console.log('Installing update for', dependency);
     if (dependency === 'yt-dlp') {
       setYtDlpUpdate(prev => ({ ...prev, status: 'installing' }));
       try {
         const result = await ipc.installDependency('yt-dlp');
-        console.log('Install result:', result);
         if (result.success) {
           setYtDlpUpdate({ status: 'installed' });
           onRefreshVersions(); // Refresh versions after install

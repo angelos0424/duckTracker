@@ -57,8 +57,6 @@ export class IpcManager {
     }
 
     public registerIpcHandlers(): void {
-        console.log('Setting up IPC handlers...');
-        
         ipcMain.on('minimize-window', () => {
             BrowserWindow.getFocusedWindow()?.minimize();
         });

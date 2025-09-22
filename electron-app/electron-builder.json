@@ -31,7 +31,7 @@
         "from": "resources",
         "to": ".",
         "filter": [
-          "**/*"
+          "*.exe"
         ]
       }
     ],
@@ -76,8 +76,8 @@
 
     "extraResources": [
       {
-        "from": "resources/yt-dlp-macos",
-        "to": "resources/yt-dlp"
+        "from": "resources/yt-dlp",
+        "to": "yt-dlp"
       },
       {
         "from": "resources/ffmpeg",

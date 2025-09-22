@@ -83,7 +83,7 @@ export class ErrorHandler {
         label: 'Try Alternative Ports',
         action: async () => {
           // This will be handled by the caller
-          console.log('Attempting to use alternative ports');
+          console.warn('Attempting to use alternative ports');
         },
         primary: true
       },
@@ -91,7 +91,6 @@ export class ErrorHandler {
         label: 'Open Settings',
         action: async () => {
           // Signal to open settings - will be handled by main process
-          console.log('Opening settings to configure ports');
         }
       }
     ]);
@@ -134,7 +133,6 @@ export class ErrorHandler {
       {
         label: 'Create Directory',
         action: async () => {
-          console.log('Attempting to create directory');
         }
       }
     ]);
@@ -144,14 +142,12 @@ export class ErrorHandler {
       {
         label: 'Recreate Database',
         action: async () => {
-          console.log('Recreating database with fresh schema');
         },
         primary: true
       },
       {
         label: 'Backup and Reset',
         action: async () => {
-          console.log('Creating backup and resetting database');
         }
       }
     ]);
@@ -499,7 +495,7 @@ export class ErrorHandler {
     if (primaryAction) {
       try {
         await primaryAction.action();
-        console.log(`Auto-recovery attempted for error: ${error.code}`);
+        console.error(`Auto-recovery attempted for error: ${error.code}`);
       } catch (recoveryError) {
         console.error(`Auto-recovery failed for error ${error.code}:`, recoveryError);
       }

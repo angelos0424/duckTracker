@@ -12,6 +12,9 @@ import { DependencyChecker } from './DependencyChecker';
 import { WindowManager } from './managers/WindowManager';
 import { TrayManager } from './managers/TrayManager';
 import { IpcManager } from './managers/IpcManager';
+import { initializeLogger } from './utils/logger';
+
+initializeLogger();
 
 class ElectronApp {
     private windowManager: WindowManager;
@@ -44,7 +47,7 @@ class ElectronApp {
         // Managers that depend on the database must be initialized after the DB
         this.downloadManager = new DownloadManager(this.databaseManager);
         this.settingsManager = new SettingsManager(this.databaseManager.getDatabase());
-        this.serverManager = new ServerManager(this.ytDlpWrap, this.downloadManager, this.databaseManager, this.windowManager);
+        this.serverManager = new ServerManager(this.ytDlpWrap, this.downloadManager, this.databaseManager, this.windowManager, resourcesDir);
 
         this.ipcManager = new IpcManager(
             this.settingsManager,
@@ -125,7 +128,7 @@ class ElectronApp {
     private async checkDependenciesOnStartup(): Promise<void> {
         try {
             const latestVersion = await this.dependencyChecker.checkForUpdates('yt-dlp');
-            const currentVersion = await this.ytDlpWrap.getVersion();
+            const currentVersion = (await this.ytDlpWrap.getVersion()).trim();
 
             if (latestVersion && latestVersion !== currentVersion) {
                 this.notificationManager.showInfo(

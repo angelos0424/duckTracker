@@ -147,7 +147,7 @@ export class SettingsManager {
     }
 
     if (errors.length > 0) {
-      console.log('Invalid settings found:', errors);
+      console.error('Invalid settings found:', errors);
     }
     return {
       valid: errors.length === 0,

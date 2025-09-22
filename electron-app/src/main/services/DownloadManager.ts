@@ -104,7 +104,6 @@ export class DownloadManager extends EventEmitter {
       this.activeDownloads.set(urlId, downloadProcess);
 
       this.emit('download-updated', createdRecord);
-      console.log(`DownloadManager: Emitted download-updated for new record ${newId} with status ${createdRecord.status}`);
       this.emit('refresh-history');
       return createdRecord;
 
@@ -126,12 +125,10 @@ export class DownloadManager extends EventEmitter {
 
       // If the record doesn't exist, create it first.
       if (!record) {
-        console.log(`DownloadManager: Creating new record ${urlId} before starting.`);
         record = await this.createDownloadRecord(url, urlId, title, 'pending');
       }
 
       // Now, ensure the status is updated to 'downloading'.
-      console.log(`DownloadManager: Updating record ${urlId} to 'downloading'.`);
       const stmt = db.prepare(`
           UPDATE downloads
           SET status        = 'downloading',

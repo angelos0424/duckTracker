@@ -60,15 +60,13 @@ export class NotificationManager {
     const supported = Notification.isSupported();
     const enabledInSettings = this.settings?.showNotifications ?? false;
     
-    console.log(`Notification check for type ${type}: Supported=${supported}, EnabledInSettings=${enabledInSettings}`);
-
     if (!supported) {
-      console.log('Notifications not supported on this platform.');
+      console.error('Notifications not supported on this platform.');
       return false;
     }
 
     if (!enabledInSettings) {
-      console.log('Notifications disabled in settings.');
+      console.error('Notifications disabled in settings.');
       return false;
     }
 
@@ -244,9 +242,14 @@ export class NotificationManager {
   /**
    * Show info notification
    */
-  public async showInfo(title: string, message: string, actions?: NotificationAction[]): Promise<void> {
-    if (!this.isNotificationEnabled(NotificationType.INFO)) {
+  public async showInfo(title: string, message: string, actions?: NotificationAction[], force: boolean = false): Promise<void> {
+    if (!force && !this.isNotificationEnabled(NotificationType.INFO)) {
       return;
+    }
+
+    if (!Notification.isSupported()) {
+        console.error('Notifications not supported on this platform.');
+        return;
     }
 
     await this.showNotification({
@@ -347,7 +350,6 @@ export class NotificationManager {
 
       // Handle notification click
       notification.on('click', () => {
-        console.log(`Notification clicked: ${options.title}`);
         this.showMainWindow();
         if (options.tag) {
           this.activeNotifications.delete(options.tag);
@@ -356,7 +358,6 @@ export class NotificationManager {
 
       // Handle notification close
       notification.on('close', () => {
-        console.log(`Notification closed: ${options.title}`);
         if (options.tag) {
           this.activeNotifications.delete(options.tag);
         }
@@ -366,7 +367,6 @@ export class NotificationManager {
       if (options.actions && options.actions.length > 0) {
         // Note: Electron's Notification doesn't support action events in the same way
         // This would need to be implemented differently for cross-platform support
-        console.log('Notification actions configured but not yet implemented for this platform. Actions will not be clickable.');
         // For now, we'll just log the actions, but they won't be interactive
         options.actions.forEach(action => {
           console.log(`  Action: ${action.text} (Type: ${action.type})`);

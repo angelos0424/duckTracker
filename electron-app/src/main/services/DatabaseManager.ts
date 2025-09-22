@@ -75,10 +75,8 @@ export class DatabaseManager {
    * Initialize database connection and run migrations
    */
   async initialize(customDbPath?: string): Promise<void> {
-    console.log('Attempting to initialize DatabaseManager...');
     try {
       this.determineDbPath(customDbPath);
-      console.log(`Database path determined: ${this.dbPath}`);
 
       if (!this.dbPath) {
         throw new Error('Database path could not be determined.');
@@ -91,8 +89,6 @@ export class DatabaseManager {
       await this.runMigrations();
 
       this.reindexDownloadsId();
-
-      console.log('Database initialized successfully at:', this.dbPath);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`Database initialization failed: ${errorMessage}`, {stack: error instanceof Error ? error.stack : undefined});
@@ -109,10 +105,8 @@ export class DatabaseManager {
   private determineDbPath(customDbPath?: string): void {
     try {
       if (customDbPath) {
-        console.log(`Using custom DB path: ${customDbPath}`);
         const dbDir = path.dirname(customDbPath);
         if (!fs.existsSync(dbDir)) {
-          console.log(`Creating directory for custom DB: ${dbDir}`);
           fs.mkdirSync(dbDir, {recursive: true});
         }
         this.dbPath = customDbPath;

@@ -37,8 +37,6 @@ export class DependencyChecker {
     let ytDlpUrl: string;
     let installInstructions: string[];
 
-    console.log('Setting up dependencies...', platform);
-
     if (platform === 'win32') {
       ytDlpUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
       installInstructions = [
@@ -113,8 +111,6 @@ export class DependencyChecker {
       missingDependencies: []
     };
 
-    console.log('Checking application dependencies...');
-
     for (const dependency of this.dependencies) {
       try {
         const isAvailable = await dependency.checkFunction();
@@ -132,7 +128,6 @@ export class DependencyChecker {
           
           console.error(`✗ ${dependency.name} check failed`);
         } else {
-          console.log(`✓ ${dependency.name} check passed`);
         }
       } catch (error) {
         const errorMessage = `${dependency.name} check error: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -164,7 +159,7 @@ export class DependencyChecker {
       const stats = await fsp.stat(ytDlpPath);
       return stats.size > 0;
     } catch (error) {
-      console.log('yt-dlp not found in resources directory.');
+      console.error('yt-dlp not found in resources directory.');
       return false;
     }
   }
@@ -277,8 +272,6 @@ export class DependencyChecker {
 
     const initialUrl = depInfo.downloadUrl;
     const destinationPath = this.getYtDlpPath();
-
-    console.log('Installing yt-dlp...', initialUrl, '->', destinationPath);
 
     try {
         await fsp.mkdir(path.dirname(destinationPath), { recursive: true });

@@ -40,8 +40,9 @@ export class ServerManager extends EventEmitter {
   private downloadManager: DownloadManager;
   private db: Database.Database;
   private windowManager: WindowManager;
+  private resourcesDir: string;
 
-  constructor(ytDlpWrap: YTDlpWrap, downloadManager: DownloadManager, databaseManager: DatabaseManager, windowManager: WindowManager) {
+  constructor(ytDlpWrap: YTDlpWrap, downloadManager: DownloadManager, databaseManager: DatabaseManager, windowManager: WindowManager, resourcesDir: string) {
     super();
     this.app = express();
     this.ytDlpWrap = ytDlpWrap;
@@ -49,6 +50,8 @@ export class ServerManager extends EventEmitter {
     this.downloadManager = downloadManager;
     this.db = databaseManager.getDatabase();
     this.windowManager = windowManager;
+    this.resourcesDir = resourcesDir;
+
     this.setupExpressApp();
     this.setupEventListeners();
   }
@@ -59,7 +62,6 @@ export class ServerManager extends EventEmitter {
 
   private setupExpressApp(): void {
     this.app.use(express.json());
-    console.log('Setting up Express app...');
   }
 
   private setupEventListeners(): void {
@@ -74,7 +76,6 @@ export class ServerManager extends EventEmitter {
     });
 
     this.downloadManager.on('download-restarted-request', (data: { url: string; urlId: string; title?: string }) => {
-      console.log('Received download restart request', data);
       this.startDownload({ ...data, options: [] });
     });
 
@@ -114,7 +115,6 @@ export class ServerManager extends EventEmitter {
       try {
         const nextDownload = this.downloadManager.popNextQueuedDownload();
         if (nextDownload) {
-          console.log('Popped next download from queue:', nextDownload.urlId);
           await this.startDownload({
             url: nextDownload.url,
             urlId: nextDownload.urlId,
@@ -131,7 +131,6 @@ export class ServerManager extends EventEmitter {
   private setupRoutes(): void {
     this.app.post('/download', async (req, res) => {
       try {
-        console.log('Received download request:', req.body);
         if (!this.config) {
           return res.status(500).json({ error: 'Server not configured' });
         }
@@ -163,7 +162,6 @@ export class ServerManager extends EventEmitter {
 
     this.app.post('/stop_download', async (req, res) => {
       try {
-        console.log('Received stop download request:', req.body);
         const {urlId} = req.body || {};
         if (!urlId) {
           return res.status(400).json({error: 'urlId is required'});
@@ -177,14 +175,11 @@ export class ServerManager extends EventEmitter {
     });
 
     this.app.post('/save_history', (_req, res) => {
-      console.log('Received save history request', _req.body);
       return res.json({success: true});
     });
 
     this.app.get('/downloads', (_req, res) => {
-      console.log('Received downloads request', _req.body);
       const list = Array.from(this.downloadsState.values());
-      console.log('Sending downloads response', list);
       return res.json(list);
     });
   }
@@ -192,7 +187,6 @@ export class ServerManager extends EventEmitter {
   private async isPortAvailable(port: number): Promise<boolean> {
     return new Promise((resolve) => {
       const server = net.createServer();
-      console.log('Checking up port:', port);
       server.listen(port, () => {
         server.once('close', () => resolve(true));
         server.close();
@@ -248,7 +242,6 @@ export class ServerManager extends EventEmitter {
     // Ensure the output directory exists before starting the download
     try {
       if (!fs.existsSync(config.outputPath)) {
-        console.log(`Download directory does not exist. Creating: ${config.outputPath}`);
         fs.mkdirSync(config.outputPath, { recursive: true });
       }
     } catch (error) {
@@ -292,19 +285,20 @@ export class ServerManager extends EventEmitter {
 
     // Check if the download was cancelled while fetching metadata
     if (!this.activeDownloads.has(data.urlId)) {
-      console.log(`Download ${data.urlId} was cancelled during metadata fetch. Aborting start.`);
+      console.error(`Download ${data.urlId} was cancelled during metadata fetch. Aborting start.`);
       return false; // Return false to indicate it didn't actually start
     }
 
     this.downloadsState.set(data.urlId, { status: 'started', url: data.url, urlId: data.urlId, percent: 0, title: currentTitle });
     this.emit('download-started', { urlId: data.urlId, url: data.url, title: currentTitle, status: 'downloading' });
 
-    const downloadOptions = [data.url, '-f', config.format, '-P', config.outputPath, '-o', config.outputTemplate, ...(data.options || [])];
+    const ffmpegBinaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+    const ffmpegPath = path.join(this.resourcesDir, ffmpegBinaryName);
+
+    const downloadOptions = [data.url, '-f', config.format, '-P', config.outputPath, '-o', config.outputTemplate, '--ffmpeg-location', ffmpegPath, ...(data.options || [])];
     let currentFilePath = '';
 
     try {
-      console.log(`Starting download for ${data.urlId}: ${currentTitle} with options: ${downloadOptions.join(' ')}`);
-
       try {
         if (currentTitle === '') {
           const metadata = await this.ytDlpWrap.getVideoInfo(data.url);
@@ -320,7 +314,6 @@ export class ServerManager extends EventEmitter {
         .on('ytDlpEvent', (eventType, eventData) => {
           if (eventType === 'download') {
             if (eventData.endsWith('has already been downloaded')) {
-              console.log(eventData);
               const existingFile = eventData.split('has already been downloaded')[0]?.trim() || '';
               this.activeDownloads.delete(data.urlId);
               this.downloadsState.set(data.urlId, { status: 'completed', url: data.url, urlId: data.urlId, title: currentTitle, percent: 100 });
@@ -365,7 +358,7 @@ export class ServerManager extends EventEmitter {
         .on('error', async (error: Error) => {
           // Don't treat aborts as failures. The 'download-stopped' event handles the state.
           if (error.message.includes('AbortError')) {
-            console.log(`Download ${data.urlId} was aborted.`);
+            console.error(`Download ${data.urlId} was aborted.`);
             // The process will still fire 'close', which will handle queue processing.
             return;
           }
@@ -384,7 +377,6 @@ export class ServerManager extends EventEmitter {
             // If currentFilePath is still empty, try to determine it post-download.
             if (!currentFilePath) {
               try {
-                console.log("Not Exist file path: " + currentFilePath);
                 // Use --get-filename to reliably get the final filename & no download
                 const filename = await this.ytDlpWrap.execPromise([
                   data.url,
@@ -510,10 +502,8 @@ export class ServerManager extends EventEmitter {
               const result = insertStmt.run(url_id, `https://www.youtube.com/watch?v=${url_id}`, 'check', start_time, start_time);
               if (result.changes > 0) {
                 insertedCount++;
-                console.log(`✅ Inserted: ${url_id}`);
               } else {
                 ignoredCount++;
-                console.log(`⚠️ Ignored (duplicate): ${url_id}`);
               }
             }
           });
