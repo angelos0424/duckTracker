@@ -78,6 +78,18 @@ export const useIPC = () => {
       window.electronAPI.showWindow();
     };
 
+    const openFolderDialog = () => {
+      return window.electronAPI.openFolderDialog();
+    }
+
+    const checkForUpdates = (dependency: 'yt-dlp' | 'ffmpeg') => {
+      return window.electronAPI.checkForUpdates(dependency);
+    }
+
+    const installDependency = (dependency: 'yt-dlp' | 'ffmpeg') => {
+      return window.electronAPI.installDependency(dependency);
+    }
+
     return {
       // Download operations
       getDownloads,
@@ -97,6 +109,9 @@ export const useIPC = () => {
       minimizeWindow,
       closeWindow,
       showWindow,
+      openFolderDialog,
+      checkForUpdates,
+      installDependency,
     };
   }, []);
 };

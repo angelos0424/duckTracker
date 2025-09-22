@@ -1,11 +1,14 @@
 import * as React from 'react';
 import { AppSettings } from '../../shared/types';
-import {useIPC} from "../hooks/useIPC";
-import {Box} from "@mui/material";
-const get = require('lodash.get');
-// @ts-ignore
+import { useIPC } from '../hooks/useIPC';
+import { Box, Button, TextField, Select, MenuItem, FormControl, InputLabel, Checkbox, FormControlLabel, Typography, Paper, Divider, Tooltip, IconButton } from '@mui/material';
+import Grid from '@mui/material/Grid';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import get from 'lodash.get';
+
+import './Settings.css';
+
 import enTranslations from '../locales/en.json';
-// @ts-ignore
 import koTranslations from '../locales/ko.json';
 
 const locales: Record<string, any> = {
@@ -22,466 +25,218 @@ interface SettingsProps {
   onRefreshVersions: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({
-  settings,
-  onSave,
-  onReset,
-  ytDlpVersion,
-  ffmpegVersion,
-  onRefreshVersions,
-}) => {
+const Settings: React.FC<SettingsProps> = ({ settings, onSave, onReset, ytDlpVersion, ffmpegVersion, onRefreshVersions }) => {
   const [formSettings, setFormSettings] = React.useState<AppSettings>(settings);
   const [translations, setTranslations] = React.useState<any>({});
   const [hasChanges, setHasChanges] = React.useState(false);
-  const [validationErrors, setValidationErrors] = React.useState<Record<string, string>>({});
-  const [showResetConfirm, setShowResetConfirm] = React.useState(false);
-  const [showSaveConfirm, setShowSaveConfirm] = React.useState(false);
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [isInstalling, setIsInstalling] = React.useState<string | null>(null);
   const ipc = useIPC();
 
-  // Translation function
-  const t = (key: string, fallback?: string): string => {
-    return get(translations, key, fallback || key);
-  };
+  const t = (key: string, fallback?: string): string => get(translations, key, fallback || key);
 
-  // Load translations when language changes
   React.useEffect(() => {
-    const lang = formSettings.language || 'en';
-    setTranslations(locales[lang] || {});
+    setTranslations(locales[formSettings.language] || {});
   }, [formSettings.language]);
 
-  // Update form when settings prop changes
   React.useEffect(() => {
     setFormSettings(settings);
     setHasChanges(false);
   }, [settings]);
 
-  // Check if form has changes
   React.useEffect(() => {
-    const changed = JSON.stringify(formSettings) !== JSON.stringify(settings);
-    setHasChanges(changed);
+    setHasChanges(JSON.stringify(formSettings) !== JSON.stringify(settings));
   }, [formSettings, settings]);
 
-  // Validate form settings
-  React.useEffect(() => {
-    const errors: Record<string, string> = {};
-
-    // Validate download path
-    if (!formSettings.downloadPath.trim()) {
-      errors.downloadPath = 'Download path is required';
-    }
-
-    // Validate concurrent downloads
-    if (formSettings.maxConcurrentDownloads < 1 || formSettings.maxConcurrentDownloads > 10) {
-      errors.maxConcurrentDownloads = 'Must be between 1 and 10';
-    }
-
-    // Validate HTTP port
-    if (formSettings.httpPort < 1024 || formSettings.httpPort > 65535) {
-      errors.httpPort = 'Must be between 1024 and 65535';
-    }
-
-    // Validate WebSocket port
-    if (formSettings.wsPort < 1024 || formSettings.wsPort > 65535) {
-      errors.wsPort = 'Must be between 1024 and 65535';
-    }
-
-    // Validate output template
-    if (!formSettings.outputTemplate || !formSettings.outputTemplate.trim()) {
-      errors.outputTemplate = 'Output template is required';
-    }
-
-    setValidationErrors(errors);
-  }, [formSettings]);
-
   const handleInputChange = (field: keyof AppSettings, value: any) => {
-    setFormSettings(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    // Ensure numeric fields are stored as numbers
+    const numericFields: (keyof AppSettings)[] = ['maxConcurrentDownloads', 'httpPort', 'wsPort'];
+    const finalValue = numericFields.includes(field) ? Number(value) : value;
+    setFormSettings(prev => ({ ...prev, [field]: finalValue }));
   };
 
   const handleFolderPicker = async () => {
-    try {
-      // Use IPC to open folder dialog
-      const result = await window.electronAPI.openFolderDialog();
-      if (result && !result.canceled && result.filePaths.length > 0) {
-        handleInputChange('downloadPath', result.filePaths[0]);
+    const result = await ipc.openFolderDialog();
+    if (result && !result.canceled && result.filePaths.length > 0) {
+      handleInputChange('downloadPath', result.filePaths[0]);
+    }
+  };
+
+  const handleSave = () => {
+    onSave(formSettings);
+  };
+
+  const [ytDlpUpdate, setYtDlpUpdate] = React.useState<{ status: 'idle' | 'checking' | 'available' | 'up-to-date' | 'installing' | 'installed'; latestVersion?: string }>({ status: 'idle' });
+
+  const handleCheckForUpdate = async (dependency: 'yt-dlp' | 'ffmpeg') => {
+    if (dependency === 'yt-dlp') {
+      setYtDlpUpdate({ status: 'checking' });
+      try {
+        const latestVersion = await ipc.checkForUpdates('yt-dlp');
+        if (latestVersion && latestVersion !== ytDlpVersion) {
+          setYtDlpUpdate({ status: 'available', latestVersion });
+        } else {
+          setYtDlpUpdate({ status: 'up-to-date' });
+        }
+      } catch (error) {
+        console.error('Failed to check for yt-dlp update:', error);
+        setYtDlpUpdate({ status: 'idle' }); // Reset on error
       }
-    } catch (error) {
-      console.error('Failed to open folder dialog:', error);
     }
   };
 
-  const handleSave = async () => {
-    // Check if there are validation errors
-    if (Object.keys(validationErrors).length > 0) {
-      return;
-    }
-
-    // Check if ports changed (requires server restart)
-    const portsChanged = formSettings.httpPort !== settings.httpPort || 
-                        formSettings.wsPort !== settings.wsPort;
-
-    if (portsChanged) {
-      setShowSaveConfirm(true);
-    } else {
-      await performSave();
-    }
-  };
-
-  const performSave = async () => {
-    setIsSaving(true);
-    try {
-      await onSave(formSettings);
-      
-      // Check if server restart is needed
-      const portsChanged = formSettings.httpPort !== settings.httpPort || 
-                          formSettings.wsPort !== settings.wsPort;
-      
-      if (portsChanged) {
-        // Restart server with new ports
-        await window.electronAPI.restartServer();
+  const handleInstallUpdate = async (dependency: 'yt-dlp' | 'ffmpeg') => {
+    console.log('Installing update for', dependency);
+    if (dependency === 'yt-dlp') {
+      setYtDlpUpdate(prev => ({ ...prev, status: 'installing' }));
+      try {
+        const result = await ipc.installDependency('yt-dlp');
+        console.log('Install result:', result);
+        if (result.success) {
+          setYtDlpUpdate({ status: 'installed' });
+          onRefreshVersions(); // Refresh versions after install
+        } else {
+          // Handle installation failure
+          console.error('yt-dlp installation failed:', result.message);
+          setYtDlpUpdate({ status: 'available' }); // Go back to available state
+        }
+      } catch (error) {
+        console.error('Failed to install yt-dlp update:', error);
+        setYtDlpUpdate({ status: 'available' });
       }
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    } finally {
-      setIsSaving(false);
-      setShowSaveConfirm(false);
     }
   };
-
-  const handleReset = () => {
-    setShowResetConfirm(true);
-  };
-
-  const performReset = async () => {
-    try {
-      await onReset();
-    } catch (error) {
-      console.error('Failed to reset settings:', error);
-    } finally {
-      setShowResetConfirm(false);
-    }
-  };
-
-  const handleCheckForUpdates = async (dependency: 'yt-dlp') => {
-    const latestVersion = await window.electronAPI.checkForUpdates(dependency);
-
-    if (latestVersion && latestVersion !== ytDlpVersion) {
-      alert(`A new version of yt-dlp is available: ${latestVersion}`);
-    } else if (latestVersion) {
-      alert(`You have the latest version of yt-dlp: ${ytDlpVersion}`);
-    } else {
-      alert('Could not check for updates.');
-    }
-    onRefreshVersions();
-  };
-
-  const handleDownload = async (dependency: 'yt-dlp') => {
-    setIsInstalling(dependency);
-    try {
-      const result = await window.electronAPI.installDependency(dependency);
-      alert(result.message);
-
-      if (result.success) {
-        onRefreshVersions();
-      } 
-    } catch (error) {
-      console.error(`Failed to install ${dependency}:`, error);
-      alert(`An error occurred while installing ${dependency}.`);
-    } finally {
-      setIsInstalling(null);
-    }
-  };
-
-  const videoQualityOptions = [
-    { value: 'best', label: 'Best Available Quality', description: 'Highest quality available' },
-    { value: '1080p', label: '1080p (Full HD)', description: '1920x1080 resolution' },
-    { value: '720p', label: '720p (HD)', description: '1280x720 resolution' },
-    { value: '480p', label: '480p (SD)', description: '854x480 resolution' }
-  ];
-
-  const openTemplatePage = () => {
-    ipc.openExternalUrl("https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#output-template-examples");
-  }
-
-  if (!translations) return <div>Loading...</div>;
 
   return (
-    <Box className="settings" mt={2}>
-      <div className="settings-header">
-        <h2>{t('settings.title')}</h2>
-        <div className="settings-actions">
-          <button 
-            onClick={handleSave} 
-            className="save-button"
-            disabled={!hasChanges}
-          >
-            {t('settings.save_changes')}
-          </button>
-          <button onClick={handleReset} className="reset-button">
-            {t('settings.reset_to_defaults')}
-          </button>
-        </div>
-      </div>
-      
-      <div className="settings-form">
-        {/* Language Section */}
-        <div className="settings-section">
-          <h3>{t('settings.language')}</h3>
-          <div className="form-group">
-            <select
-              id="language"
+    <Paper elevation={3} sx={{ p: 3, mt: 2 }}>
+      <Box sx={{ maxWidth: '960px', margin: 'auto' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" component="h2">{t('settings.title')}</Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button variant="contained" color="primary" onClick={handleSave} disabled={!hasChanges}>
+              {t('settings.save_changes')}
+            </Button>
+            <Button variant="outlined" color="secondary" onClick={onReset}>
+              {t('settings.reset_to_defaults')}
+            </Button>
+          </Box>
+        </Box>
+
+        <Divider sx={{ mb: 3 }} />
+
+        <Grid container className="settings-container">
+        {/* General Settings */}
+        <Grid className="settings-item md-6">
+          <FormControl fullWidth margin="normal">
+            <InputLabel>{t('settings.language')}</InputLabel>
+            <Select
               value={formSettings.language}
-              onChange={(e) => handleInputChange('language', e.target.value as 'en' | 'ko')}
-              className="quality-select"
+              label={t('settings.language')}
+              onChange={(e) => handleInputChange('language', e.target.value)}
             >
-              <option value="en">English</option>
-              <option value="ko">한국어</option>
-            </select>
-          </div>
-        </div>
+              <MenuItem value="en">English</MenuItem>
+              <MenuItem value="ko">한국어</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
 
-        {/* Download Directory Section */}
-        <div className="settings-section">
-          <h3>{t('settings.sections.downloads.title')}</h3>
-          
-          <div className="form-group">
-            <label htmlFor="downloadPath">{t('settings.sections.downloads.directory')}</label>
-            <div className="folder-picker">
-              <input
-                type="text"
-                id="downloadPath"
-                value={formSettings.downloadPath}
-                onChange={(e) => handleInputChange('downloadPath', e.target.value)}
-                className={`folder-input ${validationErrors.downloadPath ? 'error' : ''}`}
-                placeholder={t('settings.sections.downloads.directory_placeholder')}
-              />
-              <button 
-                type="button" 
-                onClick={handleFolderPicker}
-                className="folder-browse-button"
-              >
-                Browse
-              </button>
-            </div>
-            {validationErrors.downloadPath && (
-              <small className="form-error">{validationErrors.downloadPath}</small>
-            )}
-            <small className="form-help">{t('settings.sections.downloads.directory_help')}</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="videoQuality">{t('settings.sections.downloads.quality')}</label>
-            <select
-              id="videoQuality"
+        {/* Download Settings */}
+        <Grid className="settings-item">
+          <Typography variant="h6" gutterBottom>{t('settings.sections.downloads.title')}</Typography>
+        </Grid>
+        <Grid className="settings-item md-8">
+          <TextField
+            fullWidth
+            label={t('settings.sections.downloads.directory')}
+            value={formSettings.downloadPath}
+            variant="outlined"
+          />
+        </Grid>
+        <Grid className="settings-item md-4">
+            <Button fullWidth variant="contained" onClick={handleFolderPicker} sx={{ height: '100%' }}>{t('settings.sections.downloads.directory_placeholder', 'Browse')}</Button>
+        </Grid>
+        <Grid className="settings-item md-6">
+          <FormControl fullWidth margin="normal">
+            <InputLabel>{t('settings.sections.downloads.quality')}</InputLabel>
+            <Select
               value={formSettings.videoQuality}
+              label={t('settings.sections.downloads.quality')}
               onChange={(e) => handleInputChange('videoQuality', e.target.value)}
-              className="quality-select"
             >
-              {videoQualityOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {t(`settings.sections.downloads.quality_help.${option.value}`)}
-                </option>
-              ))}
-            </select>
-            <small className="form-help">
-              {t(`settings.sections.downloads.quality_help.${formSettings.videoQuality}`)}
-            </small>
-          </div>
+              <MenuItem value="best">Best</MenuItem>
+              <MenuItem value="1080p">1080p</MenuItem>
+              <MenuItem value="720p">720p</MenuItem>
+              <MenuItem value="480p">480p</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid className="settings-item md-6">
+          <TextField
+            fullWidth
+            margin="normal"
+            label={t('settings.sections.downloads.concurrent')}
+            type="number"
+            value={formSettings.maxConcurrentDownloads}
+            onChange={(e) => handleInputChange('maxConcurrentDownloads', e.target.value)}
+          />
+        </Grid>
+        <Grid className="settings-item">
+          <TextField
+            fullWidth
+            margin="normal"
+            label={t('settings.sections.downloads.output_template')}
+            value={formSettings.outputTemplate}
+            onChange={(e) => handleInputChange('outputTemplate', e.target.value)}
+          />
+        </Grid>
 
-          <div className="form-group">
-            <label htmlFor="maxConcurrentDownloads">{t('settings.sections.downloads.concurrent')}</label>
-            <input
-              type="number"
-              id="maxConcurrentDownloads"
-              value={formSettings.maxConcurrentDownloads}
-              onChange={(e) => handleInputChange('maxConcurrentDownloads', parseInt(e.target.value) || 1)}
-              min="1"
-              max="10"
-              className={`number-input ${validationErrors.maxConcurrentDownloads ? 'error' : ''}`}
-            />
-            {validationErrors.maxConcurrentDownloads && (
-              <small className="form-error">{validationErrors.maxConcurrentDownloads}</small>
+        {/* UI Settings */}
+        <Grid className="settings-item">
+          <Typography variant="h6" gutterBottom>{t('settings.sections.application.title')}</Typography>
+        </Grid>
+        <Grid className="settings-item">
+          <FormControlLabel
+            control={<Checkbox checked={formSettings.minimizeToTray} onChange={(e) => handleInputChange('minimizeToTray', e.target.checked)} />}
+            label={t('settings.sections.application.minimize_to_tray')}
+          />
+        </Grid>
+        <Grid className="settings-item">
+          <FormControlLabel
+            control={<Checkbox checked={formSettings.showNotifications} onChange={(e) => handleInputChange('showNotifications', e.target.checked)} />}
+            label={t('settings.sections.application.show_notifications')}
+          />
+        </Grid>
+
+        {/* Version Info */}
+        <Grid className="settings-item">
+            <Typography variant="h6" gutterBottom>{t('settings.sections.dependencies.title')}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                <Typography variant="body1">yt-dlp: {ytDlpVersion}</Typography>
+                <Box sx={{ width: 16 }} />
+                <Typography variant="body1">FFmpeg: {ffmpegVersion}</Typography>
+                <Box sx={{ flexGrow: 1 }} />
+                <Tooltip title={t('settings.sections.dependencies.check_for_updates', 'Refresh')}>
+                    <IconButton onClick={onRefreshVersions} size="small">
+                        <RefreshIcon />
+                    </IconButton>
+                </Tooltip>
+                <Button onClick={() => handleCheckForUpdate('yt-dlp')} disabled={ytDlpUpdate.status === 'checking' || ytDlpUpdate.status === 'installing'}>
+                    {ytDlpUpdate.status === 'checking' ? 'Checking...' : t('settings.sections.dependencies.check_for_updates')}
+                </Button>
+            </Box>
+            {ytDlpUpdate.status === 'available' && (
+                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Typography variant="body2">Update available: {ytDlpUpdate.latestVersion}</Typography>
+                    <Button variant="contained" onClick={() => handleInstallUpdate('yt-dlp')}>
+                        {t('settings.sections.dependencies.install_update')}
+                    </Button>
+                </Box>
             )}
-            <small className="form-help">{t('settings.sections.downloads.concurrent_help')}</small>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="outputTemplate">{t('settings.sections.downloads.output_template')}</label>
-            <input
-              type="text"
-              id="outputTemplate"
-              value={formSettings.outputTemplate}
-              onChange={(e) => handleInputChange('outputTemplate', e.target.value)}
-              className={`folder-input ${validationErrors.outputTemplate ? 'error' : ''}`}
-              placeholder={t('settings.sections.downloads.output_template_placeholder')}
-            />
-            {validationErrors.outputTemplate && (
-              <small className="form-error">{validationErrors.outputTemplate}</small>
-            )}
-            <small className="form-help">
-              {t('settings.sections.downloads.output_template_help')} <code>%(title)s [%(id)s].%(ext)s     </code>
-              <span className="tab-badge" style={{cursor:'pointer'}} onClick={openTemplatePage}>Examples</span>
-            </small>
-          </div>
-        </div>
-
-        {/* Server Configuration Section */}
-        <div className="settings-section">
-          <h3>{t('settings.sections.server.title')}</h3>
-          
-          <div className="form-group">
-            <label htmlFor="Port">{t('settings.sections.server.port')}</label>
-            <input
-              type="number"
-              id="Port"
-              value={formSettings.httpPort}
-              onChange={(e) => handleInputChange('httpPort', parseInt(e.target.value) || 8080)}
-              min="1024"
-              max="65535"
-              className={`number-input ${validationErrors.httpPort ? 'error' : ''}`}
-            />
-            {validationErrors.httpPort && (
-              <small className="form-error">{validationErrors.httpPort}</small>
-            )}
-            <small className="form-help">{t('settings.sections.server.http_port_help')}</small>
-          </div>
-        </div>
-
-        {/* Application Behavior Section */}
-        <div className="settings-section">
-          <h3>{t('settings.sections.application.title')}</h3>
-
-          <div className="form-group checkbox-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={formSettings.minimizeToTray}
-                onChange={(e) => handleInputChange('minimizeToTray', (e.target as HTMLInputElement).checked)}
-              />
-              <span className="checkbox-text">{t('settings.sections.application.minimize_to_tray')}</span>
-            </label>
-            <small className="form-help">{t('settings.sections.application.minimize_to_tray_help')}</small>
-          </div>
-
-          <div className="form-group checkbox-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={formSettings.showNotifications}
-                onChange={(e) => handleInputChange('showNotifications', (e.target as HTMLInputElement).checked)}
-              />
-              <span className="checkbox-text">{t('settings.sections.application.show_notifications')}</span>
-            </label>
-            <small className="form-help">{t('settings.sections.application.show_notifications_help')}</small>
-          </div>
-        </div>
-
-        {/* Dependencies Section */}
-        <div className="settings-section">
-          <h3>{t('settings.sections.dependencies.title')}</h3>
-          
-          {/* yt-dlp subsection */}
-          <div className="dependency-item">
-            <div className="dependency-info">
-              <span className="dependency-name">yt-dlp</span>
-              <span className="dependency-version">{ytDlpVersion}</span>
-            </div>
-            <div className="dependency-actions">
-              <button className="action-button" onClick={() => handleCheckForUpdates('yt-dlp')} disabled={isInstalling !== null}>
-                {t('settings.sections.dependencies.check_for_updates')}
-              </button>
-              <button className="action-button" onClick={() => handleDownload('yt-dlp')} disabled={isInstalling !== null}>
-                {isInstalling === 'yt-dlp' ? t('settings.sections.dependencies.installing') : t('settings.sections.dependencies.install_update')}
-              </button>
-            </div>
-          </div>
-
-          {/* ffmpeg subsection */}
-          <div className="dependency-item">
-            <div className="dependency-info">
-              <span className="dependency-name">ffmpeg</span>
-              <span className="dependency-version">{ffmpegVersion}</span>
-            </div>
-            <div className="dependency-actions">
-              <span className="dependency-status">{t('settings.sections.dependencies.managed_automatically')}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Save Confirmation Dialog */}
-      {showSaveConfirm && (
-        <div className="dialog-overlay">
-          <div className="dialog-container">
-            <div className="dialog-content">
-              <div className="dialog-header">
-                <span className="dialog-icon">⚠️</span>
-                <h3 className="dialog-title">{t('settings.dialogs.save_confirm_title')}</h3>
-              </div>
-              <div className="dialog-body">
-                <p className="dialog-message">
-                  {t('settings.dialogs.save_confirm_message')}
-                </p>
-              </div>
-              <div className="dialog-actions">
-                <button 
-                  className="dialog-button cancel-button"
-                  onClick={() => setShowSaveConfirm(false)}
-                  disabled={isSaving}
-                >
-                  {t('settings.dialogs.cancel_button')}
-                </button>
-                <button 
-                  className="dialog-button confirm-button warning"
-                  onClick={performSave}
-                  disabled={isSaving}
-                >
-                  {isSaving ? t('settings.save_changes') : t('settings.dialogs.save_confirm_button')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Confirmation Dialog */}
-      {showResetConfirm && (
-        <div className="dialog-overlay">
-          <div className="dialog-container">
-            <div className="dialog-content">
-              <div className="dialog-header">
-                <span className="dialog-icon">🔄</span>
-                <h3 className="dialog-title">{t('settings.dialogs.reset_confirm_title')}</h3>
-              </div>
-              <div className="dialog-body">
-                <p className="dialog-message">
-                  {t('settings.dialogs.reset_confirm_message')}
-                </p>
-              </div>
-              <div className="dialog-actions">
-                <button 
-                  className="dialog-button cancel-button"
-                  onClick={() => setShowResetConfirm(false)}
-                >
-                  {t('settings.dialogs.cancel_button')}
-                </button>
-                <button 
-                  className="dialog-button confirm-button danger"
-                  onClick={performReset}
-                >
-                  {t('settings.dialogs.reset_confirm_button')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </Box>
-  );
+            {ytDlpUpdate.status === 'installing' && <Typography variant="body2" sx={{ mt: 1 }}>Installing update...</Typography>}
+            {ytDlpUpdate.status === 'up-to-date' && <Typography variant="body2" sx={{ mt: 1 }}>yt-dlp is up to date.</Typography>}
+            {ytDlpUpdate.status === 'installed' && <Typography variant="body2" sx={{ mt: 1 }}>yt-dlp has been updated.</Typography>}
+        </Grid>
+              </Grid>
+            </Box>
+          </Paper>  );
 };
 
 export default Settings;

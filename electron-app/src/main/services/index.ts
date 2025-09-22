@@ -1,2 +1,2 @@
 export { ServerManager } from './ServerManager';
-export * from '../shared/types';
+export * from '../../shared/types';

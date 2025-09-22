@@ -7,12 +7,14 @@ import {WebSocket, WebSocketServer} from 'ws';
 import {Server} from 'http';
 import {EventEmitter} from 'events';
 import * as net from 'net';
-import {DownloadRecord, ServerConfig, ServerStatus} from '../shared/types';
+import {DownloadRecord, ServerConfig, ServerStatus} from '../../shared/types';
 import path from 'path';
-import {ErrorCategory, ErrorHandler, ErrorSeverity} from '../main/ErrorHandler';
+import {ErrorCategory, ErrorHandler, ErrorSeverity} from '../ErrorHandler';
 import {DatabaseManager} from "./DatabaseManager";
 import Database from "better-sqlite3";
 import * as fs from "node:fs";
+
+import {WindowManager} from "../managers/WindowManager";
 
 interface ExistUrls {
   url_id: string;
@@ -37,14 +39,16 @@ export class ServerManager extends EventEmitter {
 
   private downloadManager: DownloadManager;
   private db: Database.Database;
+  private windowManager: WindowManager;
 
-  constructor(ytDlpWrap: YTDlpWrap, downloadManager: DownloadManager, databaseManager: DatabaseManager) {
+  constructor(ytDlpWrap: YTDlpWrap, downloadManager: DownloadManager, databaseManager: DatabaseManager, windowManager: WindowManager) {
     super();
     this.app = express();
     this.ytDlpWrap = ytDlpWrap;
     this.errorHandler = ErrorHandler.getInstance();
     this.downloadManager = downloadManager;
     this.db = databaseManager.getDatabase();
+    this.windowManager = windowManager;
     this.setupExpressApp();
     this.setupEventListeners();
   }
@@ -59,10 +63,68 @@ export class ServerManager extends EventEmitter {
   }
 
   private setupEventListeners(): void {
+    this.downloadManager.on('download-updated', (data) => {
+      this.windowManager.sendToRenderer('download-updated', data);
+    });
+
     this.downloadManager.on('download-finished', (data) => {
       this.broadcastWsMessage('download-finished', data);
       // Todo send ws message to browser
       
+    });
+
+    this.downloadManager.on('download-restarted-request', (data: { url: string; urlId: string; title?: string }) => {
+      console.log('Received download restart request', data);
+      this.startDownload({ ...data, options: [] });
+    });
+
+    this.on('download-started', async (data) => {
+      try {
+        await this.downloadManager.handleDownloadStart(data.url, data.urlId, data.title);
+      } catch (error) {
+        console.error('Failed to handle download start from event:', error);
+      }
+    });
+
+    this.on('download-progress', async (data) => {
+      try {
+        await this.downloadManager.updateProgress(data.urlId, data.progress, data.title);
+      } catch (error) {
+        console.error('Failed to update progress from event:', error);
+      }
+    });
+
+    this.on('download-completed', async (data) => {
+      try {
+        await this.downloadManager.completeDownload(data.urlId, data.filePath, data.title, data.fileSize);
+      } catch (error) {
+        console.error('Failed to complete download from event:', error);
+      }
+    });
+
+    this.on('download-failed', async (data) => {
+      try {
+        await this.downloadManager.failDownload(data.urlId, data.error, data.title);
+      } catch (error) {
+        console.error('Failed to fail download from event:', error);
+      }
+    });
+
+    this.on('request-next-download', async () => {
+      try {
+        const nextDownload = this.downloadManager.popNextQueuedDownload();
+        if (nextDownload) {
+          console.log('Popped next download from queue:', nextDownload.urlId);
+          await this.startDownload({
+            url: nextDownload.url,
+            urlId: nextDownload.urlId,
+            title: nextDownload.title || '',
+            options: []
+          });
+        }
+      } catch (error) {
+        console.error('Failed to process next download from queue:', error);
+      }
     });
   }
 
@@ -99,18 +161,14 @@ export class ServerManager extends EventEmitter {
       }
     });
 
-    this.app.post('/stop_download', (req, res) => {
+    this.app.post('/stop_download', async (req, res) => {
       try {
         console.log('Received stop download request:', req.body);
-        const {urlId, url} = req.body || {};
+        const {urlId} = req.body || {};
         if (!urlId) {
           return res.status(400).json({error: 'urlId is required'});
         }
-        const stopped = this.stopDownload(urlId);
-        if (stopped) {
-          const prev = this.downloadsState.get(urlId) || {url: url || '', urlId};
-          this.downloadsState.set(urlId, {...prev, status: 'stop', error: 'Download stopped'});
-        }
+        const stopped = await this.stopDownload(urlId);
         return res.json({success: stopped});
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -134,6 +192,7 @@ export class ServerManager extends EventEmitter {
   private async isPortAvailable(port: number): Promise<boolean> {
     return new Promise((resolve) => {
       const server = net.createServer();
+      console.log('Checking up port:', port);
       server.listen(port, () => {
         server.once('close', () => resolve(true));
         server.close();
@@ -146,9 +205,6 @@ export class ServerManager extends EventEmitter {
     const conflicts: string[] = [];
     if (!(await this.isPortAvailable(config.port))) {
       conflicts.push(`HTTP port ${config.port}`);
-    }
-    if (!(await this.isPortAvailable(config.wsPort))) {
-      conflicts.push(`WebSocket port ${config.wsPort}`);
     }
     return { available: conflicts.length === 0, conflicts };
   }
@@ -277,9 +333,6 @@ export class ServerManager extends EventEmitter {
             const destIndex = eventData.indexOf(destMarker);
             if (destIndex !== -1) {
               currentFilePath = eventData.substring(destIndex + destMarker.length).trim();
-
-              console.log('currentFilePath set from Destination:', currentFilePath);
-              console.log(eventData)
             }
 
             const percentMatch = eventData.match(/(\d+(?:\.\d+)?)%/);
@@ -304,9 +357,7 @@ export class ServerManager extends EventEmitter {
             const mergerMarker = 'into ';
             const mergerIndex = eventData.indexOf(mergerMarker);
             if (mergerIndex !== -1) {
-                console.log('Merger event:', eventData);
                 const filePath = eventData.substring(mergerIndex + mergerMarker.length).replace(/"/g, '').trim();
-                console.log('Merged file path:', filePath);
                 currentFilePath = filePath;
             }
           }
@@ -333,7 +384,7 @@ export class ServerManager extends EventEmitter {
             // If currentFilePath is still empty, try to determine it post-download.
             if (!currentFilePath) {
               try {
-                console.log("Not Exist file path:");
+                console.log("Not Exist file path: " + currentFilePath);
                 // Use --get-filename to reliably get the final filename & no download
                 const filename = await this.ytDlpWrap.execPromise([
                   data.url,
@@ -387,13 +438,10 @@ export class ServerManager extends EventEmitter {
     }
     this.config = config;
 
-    console.log('Starting ServerManager...', config);
-
     try {
       this.setupCors(config);
       this.setupRoutes();
       await new Promise<void>((resolve, reject) => {
-        console.log('Starting HTTP server... Port :: ', config.port);
         this.httpServer = this.app.listen(config.port, () => { // Use config.port for HTTP
           this.wsServer = new WebSocketServer({ server: this.httpServer! }); // Attach WS to HTTP server
           this.wsServer.on('connection', this.handleWsConnection.bind(this));
@@ -529,21 +577,23 @@ export class ServerManager extends EventEmitter {
     return Array.from(this.activeDownloads.keys());
   }
 
-  stopDownload(urlId: string): boolean {
+  async stopDownload(urlId: string): Promise<boolean> {
     const controller = this.activeDownloads.get(urlId);
     if (controller) {
+      // If the download is active, abort the process.
       controller.abort();
-      this.activeDownloads.delete(urlId);
-      const currentState = this.downloadsState.get(urlId);
-      this.downloadsState.set(urlId, { 
-        ...(currentState || { url: '', urlId }),
-        status: 'stop', 
-        error: 'Download stopped'
-      });
-      this.emit('download-stopped', { urlId, url: currentState?.url || '', status: 'stopped', error: 'Download stopped' });
-      return true;
     }
-    return false;
+
+    // Always call cancelDownload to unify the logic for updating the DB
+    // and emitting the necessary events for the UI.
+    try {
+      await this.downloadManager.cancelDownload(urlId);
+      console.log(`Cancelled download ${urlId} via stop command.`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to cancel download ${urlId} via stop command:`, error);
+      return false;
+    }
   }
 
   public async stop(): Promise<void> {

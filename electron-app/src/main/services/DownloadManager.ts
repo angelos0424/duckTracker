@@ -1,7 +1,7 @@
 import {DatabaseManager} from './DatabaseManager';
-import {DownloadRecord} from '../shared/types';
+import {DownloadRecord} from '../../shared/types';
 import {EventEmitter} from 'events';
-import {ErrorHandler, ErrorCategory, ErrorSeverity} from '../main/ErrorHandler';
+import {ErrorHandler, ErrorCategory, ErrorSeverity} from '../ErrorHandler';
 
 export interface DownloadProcess {
   id: string;
@@ -122,62 +122,58 @@ export class DownloadManager extends EventEmitter {
     const now = new Date().toISOString();
 
     try {
-      // Check if a record with this urlId already exists (e.g., a retried download)
-      let existingRecord = this.getDownloadByUrlId(urlId);
+      let record = this.getDownloadByUrlId(urlId);
 
-      if (existingRecord) {
-        console.log(`DownloadManager: Updating existing record ${urlId} to 'downloading'`);
-        // Update existing record
-        const stmt = db.prepare(`
-            UPDATE downloads
-            SET status        = ?,
-                progress      = ?,
-                error_message = NULL,
-                start_time    = ?,
-                end_time      = NULL,
-                title         = COALESCE(?, title)
-            WHERE url_id = ?
-        `);
-        stmt.run('downloading', 0, now, title || null, urlId);
-
-        existingRecord = this.getDownloadByUrlId(urlId); // Re-fetch updated record
-        if (!existingRecord) {
-          throw new Error('Failed to retrieve updated download record after start handling');
-        }
-
-        // Update active download process map
-        const activeDownload = this.activeDownloads.get(urlId);
-        if (activeDownload) {
-          activeDownload.status = 'downloading';
-          activeDownload.progress = 0;
-          activeDownload.startTime = new Date(now);
-          activeDownload.title = title || undefined;
-          activeDownload.error = undefined;
-        } else {
-          // This case should ideally not happen if retry logic is correct, but for safety
-          this.activeDownloads.set(urlId, {
-            id: existingRecord.id,
-            urlId: existingRecord.urlId,
-            url: existingRecord.url,
-            status: 'downloading',
-            progress: 0,
-            startTime: new Date(now),
-            title: existingRecord.title || undefined,
-            error: undefined
-          });
-        }
-        this.emit('download-updated', existingRecord); // Emit a specific event for UI to update
-        console.log(`DownloadManager: Emitted download-updated for ${urlId} with status ${existingRecord.status}`);
-        return existingRecord;
-
-      } else {
-        console.log(`DownloadManager: Creating new record ${urlId} with status 'pending'`);
-        // Create a new record if it doesn't exist
-        const newRecord = await this.createDownloadRecord(url, urlId, title);
-        // The createDownloadRecord already emits 'download-added'
-        console.log(`DownloadManager: Emitted download-updated for ${urlId} with status ${newRecord.status}`);
-        return newRecord;
+      // If the record doesn't exist, create it first.
+      if (!record) {
+        console.log(`DownloadManager: Creating new record ${urlId} before starting.`);
+        record = await this.createDownloadRecord(url, urlId, title, 'pending');
       }
+
+      // Now, ensure the status is updated to 'downloading'.
+      console.log(`DownloadManager: Updating record ${urlId} to 'downloading'.`);
+      const stmt = db.prepare(`
+          UPDATE downloads
+          SET status        = 'downloading',
+              progress      = 0,
+              error_message = NULL,
+              start_time    = ?,
+              end_time      = NULL,
+              title         = COALESCE(?, title)
+          WHERE url_id = ?
+      `);
+      stmt.run(now, title || null, urlId);
+
+      const updatedRecord = this.getDownloadByUrlId(urlId);
+      if (!updatedRecord) {
+        throw new Error('Failed to retrieve updated download record after starting.');
+      }
+
+      // Update or create the entry in the active downloads map
+      const activeDownload = this.activeDownloads.get(urlId);
+      if (activeDownload) {
+        activeDownload.status = 'downloading';
+        activeDownload.progress = 0;
+        activeDownload.startTime = new Date(now);
+        activeDownload.title = updatedRecord.title || undefined;
+        activeDownload.error = undefined;
+      } else {
+        this.activeDownloads.set(urlId, {
+          id: updatedRecord.id,
+          urlId: updatedRecord.urlId,
+          url: updatedRecord.url,
+          status: 'downloading',
+          progress: 0,
+          startTime: new Date(now),
+          title: updatedRecord.title || undefined,
+          error: undefined
+        });
+      }
+
+      this.emit('download-updated', updatedRecord);
+      console.log(`DownloadManager: Emitted download-updated for ${urlId} with status ${updatedRecord.status}`);
+      return updatedRecord;
+
     } catch (error) {
       console.error('Failed to handle download start:', error);
       throw new Error(`Failed to handle download start: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -349,7 +345,7 @@ export class DownloadManager extends EventEmitter {
           SET status   = 'cancelled',
               end_time = ?
           WHERE url_id = ?
-            AND status IN ('pending', 'downloading')
+            AND status IN ('pending', 'downloading', 'queued')
       `);
 
       const result = stmt.run(now, urlId);
@@ -408,14 +404,16 @@ export class DownloadManager extends EventEmitter {
           error_message as errorMessage,
           start_time as startTime,
           end_time as endTime,
-          created_at as createdAt
+          created_at as createdAt,
+          is_deleted as isDeleted
         FROM downloads
+        WHERE is_deleted = 0
       `;
       const params: any[] = [];
 
       // Add WHERE clause if status filter is provided
       if (status) {
-        sql += ' WHERE status = ?';
+        sql += ' AND status = ?';
         params.push(status);
       }
 
@@ -457,9 +455,10 @@ export class DownloadManager extends EventEmitter {
           start_time as startTime,
           end_time as endTime,
           created_at as createdAt,
-          file_size as fileSize
+          file_size as fileSize,
+          is_deleted as isDeleted
         FROM downloads
-        WHERE id = ?
+        WHERE id = ? AND is_deleted = 0
       `);
       return stmt.get(id) as DownloadRecord || null;
     } catch (error) {
@@ -488,9 +487,10 @@ export class DownloadManager extends EventEmitter {
           start_time as startTime,
           end_time as endTime,
           created_at as createdAt,
-          file_size as fileSize
+          file_size as fileSize,
+          is_deleted as isDeleted
         FROM downloads
-        WHERE url_id = ? ORDER BY created_at DESC LIMIT 1
+        WHERE url_id = ? AND is_deleted = 0 ORDER BY created_at DESC LIMIT 1
       `);
       return stmt.get(urlId) as DownloadRecord || null;
     } catch (error) {
@@ -511,9 +511,7 @@ export class DownloadManager extends EventEmitter {
 
     try {
       const placeholders = ids.map(() => '?').join(',');
-      const stmt = db.prepare(`DELETE
-                               FROM downloads
-                               WHERE id IN (${placeholders})`);
+      const stmt = db.prepare(`UPDATE downloads SET is_deleted = 1 WHERE id IN (${placeholders})`);
       const result = stmt.run(...ids);
 
       this.emit('records-deleted', ids);
@@ -532,7 +530,7 @@ export class DownloadManager extends EventEmitter {
     const db = this.dbManager.getDatabase();
 
     try {
-      const stmt = db.prepare('DELETE FROM downloads');
+      const stmt = db.prepare('UPDATE downloads SET is_deleted = 1');
       const result = stmt.run();
 
       this.emit('history-cleared');
@@ -558,6 +556,7 @@ export class DownloadManager extends EventEmitter {
           FROM downloads
           WHERE status IN ('completed', 'failed', 'cancelled')
             AND created_at < ?
+            AND is_deleted = 0
       `);
 
       const result = stmt.run(cutoffDate.toISOString());
@@ -596,6 +595,7 @@ export class DownloadManager extends EventEmitter {
                  SUM(CASE WHEN status = 'downloading' THEN 1 ELSE 0 END) as downloading,
                  SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END)   as cancelled
           FROM downloads
+          WHERE is_deleted = 0
       `);
 
       const result = stmt.get() as any;
@@ -715,9 +715,10 @@ export class DownloadManager extends EventEmitter {
           error_message as errorMessage,
           start_time as startTime,
           end_time as endTime,
-          created_at as createdAt
+          created_at as createdAt,
+          is_deleted as isDeleted
         FROM downloads
-        WHERE
+        WHERE is_deleted = 0 AND
       `;
     const params: any[] = [];
 
@@ -754,9 +755,10 @@ export class DownloadManager extends EventEmitter {
           error_message as errorMessage,
           start_time as startTime,
           end_time as endTime,
-          created_at as createdAt
+          created_at as createdAt,
+          is_deleted as isDeleted
         FROM downloads
-        WHERE status = 'queued' ORDER BY id ASC LIMIT 1
+        WHERE status = 'queued' AND is_deleted = 0 ORDER BY id ASC LIMIT 1
       `).get() as DownloadRecord | undefined;
 
       if (queuedDownload) {

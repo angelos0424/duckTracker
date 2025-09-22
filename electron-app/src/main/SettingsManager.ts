@@ -17,10 +17,10 @@ export class SettingsManager {
       language: 'en',
       downloadPath: path.join(app.getPath('downloads'), 'YouTube'),
       videoQuality: 'best',
-      outputTemplate: '[%(uploader_id)s] %(title)s [%(id)s].%(ext)s',
+      outputTemplate: '%(title)s [%(id)s].%(ext)s',
       maxConcurrentDownloads: 3,
-      httpPort: 8080,
-      wsPort: 8080,
+      httpPort: 9999,
+      wsPort: 9999,
       minimizeToTray: true,
       showNotifications: true
     };

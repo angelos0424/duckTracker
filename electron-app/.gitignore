@@ -2,6 +2,14 @@
 .idea
 .github
 /build
-/dist
 /node_modules
 /release
+
+
+
+
+# build result
+/dist
+
+# ai agent result
+/*.md

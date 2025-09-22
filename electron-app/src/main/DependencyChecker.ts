@@ -1,5 +1,7 @@
 import { app } from 'electron';
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
+import * as fsp from 'fs/promises';
+import * as https from 'https';
 import * as path from 'path';
 import { ErrorHandler } from './ErrorHandler';
 
@@ -34,6 +36,8 @@ export class DependencyChecker {
     const platform = process.platform;
     let ytDlpUrl: string;
     let installInstructions: string[];
+
+    console.log('Setting up dependencies...', platform);
 
     if (platform === 'win32') {
       ytDlpUrl = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
@@ -156,8 +160,8 @@ export class DependencyChecker {
   private async checkYtDlp(): Promise<boolean> {
     try {
       const ytDlpPath = this.getYtDlpPath();
-      await fs.access(ytDlpPath);
-      const stats = await fs.stat(ytDlpPath);
+      await fsp.access(ytDlpPath);
+      const stats = await fsp.stat(ytDlpPath);
       return stats.size > 0;
     } catch (error) {
       console.log('yt-dlp not found in resources directory.');
@@ -168,8 +172,8 @@ export class DependencyChecker {
   private async checkFfmpeg(): Promise<boolean> {
     try {
       const ffmpegPath = this.getFfmpegPath();
-      await fs.access(ffmpegPath);
-      const stats = await fs.stat(ffmpegPath);
+      await fsp.access(ffmpegPath);
+      const stats = await fsp.stat(ffmpegPath);
       return stats.size > 0;
     } catch (error) {
       console.error('ffmpeg not found in resources directory.', error);
@@ -192,9 +196,9 @@ export class DependencyChecker {
   private async checkApplicationResources(): Promise<boolean> {
     try {
       const resourcesPath = this.getResourcesPath();
-      await fs.access(resourcesPath);
+      await fsp.access(resourcesPath);
       const buildInfoPath = path.join(resourcesPath, 'build-info.json');
-      await fs.access(buildInfoPath);
+      await fsp.access(buildInfoPath);
       return true;
     } catch (error) {
       console.error('Application resources check failed:', error);
@@ -225,9 +229,36 @@ export class DependencyChecker {
     return [...this.dependencies];
   }
 
-  public async downloadYtDlp(): Promise<boolean> {
-    // This logic can be simplified or removed if before-pack script is reliable
-    return false; 
+  public async checkForUpdates(dependency: DependencyType): Promise<string> {
+    if (dependency === 'yt-dlp') {
+      return new Promise((resolve, reject) => {
+        https.get({ 
+          hostname: 'api.github.com',
+          path: '/repos/yt-dlp/yt-dlp/releases/latest',
+          method: 'GET',
+          headers: { 'User-Agent': 'youtube-downloader-desktop' }
+        }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                const releaseInfo = JSON.parse(data);
+                resolve(releaseInfo.tag_name);
+              } catch (e) {
+                reject(e);
+              }
+            } else {
+              reject(new Error(`Failed to fetch latest yt-dlp version: ${res.statusCode}`));
+            }
+          });
+        }).on('error', (err) => {
+          reject(err);
+        });
+      });
+    } else {
+      return Promise.resolve('manual_check_required');
+    }
   }
 
   public async installDependency(dependency: DependencyType): Promise<{
@@ -235,7 +266,70 @@ export class DependencyChecker {
     method: string;
     message: string
   }> {
-    // This logic can be simplified or removed
-    return { success: false, method: 'none', message: 'Automatic installation not supported from the app.' };
+    if (dependency !== 'yt-dlp') {
+        return { success: false, method: 'none', message: 'Automatic installation is only supported for yt-dlp.' };
+    }
+
+    const depInfo = this.getDependencyInfo('yt-dlp');
+    if (!depInfo || !depInfo.downloadUrl) {
+        return { success: false, method: 'none', message: 'Could not find download information for yt-dlp.' };
+    }
+
+    const initialUrl = depInfo.downloadUrl;
+    const destinationPath = this.getYtDlpPath();
+
+    console.log('Installing yt-dlp...', initialUrl, '->', destinationPath);
+
+    try {
+        await fsp.mkdir(path.dirname(destinationPath), { recursive: true });
+
+        const download = (url: string): Promise<void> => {
+            return new Promise((resolve, reject) => {
+                https.get(url, { headers: { 'User-Agent': 'youtube-downloader-desktop' } }, (response) => {
+                    if (response.statusCode === 302 || response.statusCode === 301) {
+                        if (response.headers.location) {
+                            download(response.headers.location).then(resolve).catch(reject);
+                        } else {
+                            reject(new Error('Redirect location not found.'));
+                        }
+                        return;
+                    }
+
+                    if (response.statusCode !== 200) {
+                        reject(new Error(`Download failed with status code: ${response.statusCode}`));
+                        return;
+                    }
+
+                    const file = fs.createWriteStream(destinationPath);
+                    response.pipe(file);
+                    file.on('finish', () => {
+                        file.close(() => resolve());
+                    });
+                }).on('error', (err) => {
+                    reject(err);
+                });
+            });
+        };
+
+        await download(initialUrl);
+
+        if (process.platform !== 'win32') {
+            await fsp.chmod(destinationPath, '755');
+        }
+
+        return { success: true, method: 'download', message: 'yt-dlp downloaded successfully.' };
+
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'An unknown error occurred.';
+        console.error(`Failed to install yt-dlp: ${message}`);
+        // Clean up failed download
+        try {
+            await fsp.access(destinationPath);
+            await fsp.unlink(destinationPath);
+        } catch (cleanupError) {
+            // Ignore error if file doesn't exist
+        }
+        return { success: false, method: 'download', message };
+    }
   }
 }

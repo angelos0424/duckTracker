@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist/main",
+    "outDir": "./dist",
     "target": "ES2020",
     "module": "CommonJS",
     "moduleResolution": "node",
@@ -10,20 +10,27 @@
     "jsx": "react",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "downlevelIteration": true
+    "downlevelIteration": true,
+    "rootDir": "./src"
   },
-  "include": [
-    "src/main/**/*",
-    "src/preload/**/*",
-    "src/server/**/*",
-    "src/shared/**/*"
-  ],
-  "exclude": [
-    "src/renderer/**/*",
-    "dist/**/*",
-    "node_modules/**/*"
-  ],
+  
   "files": [
-    "src/shared/electron-api.d.ts"
+    "src/main/main.ts",
+    "src/main/DependencyChecker.ts",
+    "src/main/ErrorHandler.ts",
+    "src/main/NotificationManager.ts",
+    "src/main/SettingsManager.ts",
+    "src/main/WindowsAutoStart.ts",
+    "src/main/managers/IpcManager.ts",
+    "src/main/managers/TrayManager.ts",
+    "src/main/managers/WindowManager.ts",
+    "src/main/services/DatabaseManager.ts",
+    "src/main/services/DownloadManager.ts",
+    "src/main/services/ServerManager.ts",
+    "src/main/services/index.ts",
+    "src/preload/preload.ts",
+    "src/shared/electron-api.d.ts",
+    "src/shared/types.ts",
+    "src/shared/utils/urlParser.ts"
   ]
 }

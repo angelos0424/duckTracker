@@ -2,8 +2,8 @@ import Database from 'better-sqlite3';
 import {app} from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import {DatabaseMigration} from '../shared/types';
-import {ErrorHandler} from '../main/ErrorHandler';
+import {DatabaseMigration} from '../../shared/types';
+import {ErrorHandler} from '../ErrorHandler';
 
 export class DatabaseManager {
   private db: Database.Database | null = null;
@@ -54,11 +54,21 @@ export class DatabaseManager {
           INSERT INTO schema_version (version)
           VALUES (2);
       `
+    },
+    {
+      version: 3,
+      description: 'Add is_deleted flag for soft deletes',
+      sql: `
+        ALTER TABLE downloads ADD COLUMN is_deleted INTEGER DEFAULT 0;
+        CREATE INDEX idx_downloads_is_deleted ON downloads (is_deleted);
+        INSERT INTO schema_version (version) VALUES (3);
+      `
     }
   ];
 
   constructor() {
     this.errorHandler = ErrorHandler.getInstance();
+    this.initialize();
   }
 
   /**
@@ -156,14 +166,15 @@ export class DatabaseManager {
             error_message TEXT,
             start_time    DATETIME NOT NULL,
             end_time      DATETIME,
-            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            is_deleted    INTEGER  DEFAULT 0
         );
       `);
 
       // 2. Copy data from the old table to the new one, letting new IDs be generated
       database.exec(`
-        INSERT INTO downloads_reindexed (url, url_id, title, status, progress, file_path, error_message, start_time, end_time, file_size, created_at)
-        SELECT url, url_id, title, status, progress, file_path, error_message, start_time, end_time, file_size, created_at
+        INSERT INTO downloads_reindexed (url, url_id, title, status, progress, file_path, error_message, start_time, end_time, file_size, created_at, is_deleted)
+        SELECT url, url_id, title, status, progress, file_path, error_message, start_time, end_time, file_size, created_at, is_deleted
         FROM downloads
         ORDER BY created_at;
       `);
@@ -179,6 +190,7 @@ export class DatabaseManager {
         CREATE INDEX idx_downloads_status ON downloads (status);
         CREATE INDEX idx_downloads_start_time ON downloads (start_time);
         CREATE INDEX idx_downloads_url_id ON downloads (url_id);
+        CREATE INDEX idx_downloads_is_deleted ON downloads (is_deleted);
       `);
     });
 

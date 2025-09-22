@@ -13,6 +13,7 @@ export interface DownloadRecord {
   startTime: Date;
   endTime: Date;
   createdAt: Date;
+  isDeleted?: boolean;
 }
 
 export interface AppSettings {
