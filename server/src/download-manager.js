@@ -52,6 +52,7 @@ class DownloadManager extends EventEmitter {
     ensureDirectory(this.config.downloadDir);
 
     const ytArgs = this.buildArgs(request.url);
+
     let spawnResult;
     try {
       spawnResult = this.spawnDownloadProcess(ytArgs, request);
@@ -71,12 +72,14 @@ class DownloadManager extends EventEmitter {
 
     const { child, containerName } = spawnResult;
 
+
     const downloadEntry = {
       request,
       child,
       filePath: '',
       stoppedManually: false,
       dockerContainerName: containerName || null
+
     };
 
     this.activeDownloads.set(request.urlId, downloadEntry);
@@ -203,6 +206,7 @@ class DownloadManager extends EventEmitter {
     const active = this.activeDownloads.get(urlId);
     if (active) {
       active.stoppedManually = true;
+
       if (active.dockerContainerName && this.config.runner?.type === 'docker') {
         const stopper = spawn(this.config.runner.dockerBin, ['stop', active.dockerContainerName]);
         stopper.on('error', () => {
@@ -213,6 +217,7 @@ class DownloadManager extends EventEmitter {
       } else {
         active.child.kill('SIGTERM');
       }
+
       return true;
     }
 

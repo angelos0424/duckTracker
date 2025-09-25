@@ -61,6 +61,7 @@ Responses always include CORS headers so the extension can call the endpoints di
 - Downloads execute inside the `YT_DLP_IMAGE` container so the Node.js image stays minimal while still bundling `yt-dlp` and `ffmpeg`.
 - `DOWNLOAD_FORMAT` recognises `{quality}` placeholders. For example, setting `DOWNLOAD_FORMAT=bestvideo[height<={quality}]+bestaudio/best[height<={quality}]` with `DOWNLOAD_QUALITY=1080p` restricts downloads to 1080p.
 - When `YT_DLP_RUNNER=docker` ensure the compose stack mounts `/var/run/docker.sock` and sets `SERVER_CONTAINER_NAME` to the running service so download containers can reuse the `/downloads` volume via `--volumes-from`.
+
 - When the concurrency limit is reached the server queues incoming downloads and starts them automatically once a slot frees up.
 
 ## Development

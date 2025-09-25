@@ -68,6 +68,7 @@ function loadConfig() {
   const format = buildFormat(process.env.DOWNLOAD_FORMAT || DEFAULT_FORMAT, qualityLimit);
   const template = process.env.OUTPUT_TEMPLATE || DEFAULT_TEMPLATE;
 
+
   const ensureDir = process.env.SKIP_DIR_CREATION !== 'true';
   if (ensureDir) {
     fs.mkdirSync(downloadDir, { recursive: true });
