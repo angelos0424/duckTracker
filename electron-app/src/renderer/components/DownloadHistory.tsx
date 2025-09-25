@@ -8,13 +8,14 @@ import { extractUrlId } from '../../shared/utils/urlParser';
 
 // MUI Imports
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
-import { Box, Button, Typography, LinearProgress, Chip, IconButton, Tooltip, Link, TextField } from '@mui/material';
+import { Box, Button, Typography, LinearProgress, Chip, IconButton, Tooltip, Link, TextField, CircularProgress, Fade } from '@mui/material';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import {useEffect} from "react";
 
 const CellBox: React.FC<{ children: React.ReactNode; alignItems?: 'flex-start' | 'center' | 'flex-end'; direction?: 'row' | 'column'; }> = ({ children, alignItems, direction }) => (
     <Box sx={{ display: 'flex', flexDirection: direction || 'column', alignItems: alignItems || 'flex-start', justifyContent: 'center', width: '100%', height: '100%', gap: 0.5 }}>
@@ -81,7 +82,11 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = React.memo(({ downloads,
     const [filterStatus, setFilterStatus] = React.useState<DownloadRecord['status'] | 'all'>('all');
     const [searchQuery, setSearchQuery] = React.useState('');
     const ipc = useIPC();
-    const { t } = useTranslation();
+    const { t, loading } = useTranslation();
+
+    useEffect(() => {
+      console.log("DownloadHistory useEffect", loading);
+    }, [loading]);
 
     const statusCounts = React.useMemo(() => {
         const counts: Record<DownloadRecord['status'] | 'all', number> = { all: downloads.length, pending: 0, downloading: 0, completed: 0, failed: 0, cancelled: 0, queued: 0, check: 0 };
@@ -142,28 +147,36 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = React.memo(({ downloads,
 
     return (
         <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <StatusFilter statusCounts={statusCounts} filterStatus={filterStatus} setFilterStatus={setFilterStatus} t={t} />
-                    <TextField
-                        label={t('history.search_placeholder', 'Search Title or URL')}
-                        variant="outlined"
-                        size="small"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        sx={{ minWidth: 300 }}
-                    />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Button variant="contained" onClick={() => setIsUrlInputDialogOpen(true)} startIcon={<PlayArrowIcon />}>{t('history.buttons.add_new', 'Add New')}</Button>
-                    <Button variant="outlined" onClick={onRefresh} startIcon={<RefreshIcon />}>{t('history.buttons.refresh', 'Refresh')}</Button>
-                </Box>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 220px)' }}>
+              <CircularProgress />
             </Box>
-            <UrlInputDialog isOpen={isUrlInputDialogOpen} onClose={() => setIsUrlInputDialogOpen(false)} onConfirm={handleAddDownload} />
-            <Box sx={{ height: 'calc(100vh - 220px)', width: '100%' }}>
-                <DataGrid rows={filteredDownloads} columns={columns} pageSizeOptions={[10, 25, 50, 100]} disableRowSelectionOnClick getRowId={(row) => row.id} />
-            </Box>
-            <ConfirmDialog isOpen={confirmDialog.isOpen} title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} type={confirmDialog.type} />
+          ) : (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <StatusFilter statusCounts={statusCounts} filterStatus={filterStatus} setFilterStatus={setFilterStatus} t={t} />
+                      <TextField
+                          label={t('history.search_placeholder', 'Search Title or URL')}
+                          variant="outlined"
+                          size="small"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          sx={{ minWidth: 300 }}
+                      />
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button variant="contained" onClick={() => setIsUrlInputDialogOpen(true)} startIcon={<PlayArrowIcon />}>{t('history.buttons.add_new', 'Add New')}</Button>
+                      <Button variant="outlined" onClick={onRefresh} startIcon={<RefreshIcon />}>{t('history.buttons.refresh', 'Refresh')}</Button>
+                  </Box>
+              </Box>
+              <UrlInputDialog isOpen={isUrlInputDialogOpen} onClose={() => setIsUrlInputDialogOpen(false)} onConfirm={handleAddDownload} />
+              <Box sx={{ height: 'calc(100vh - 220px)', width: '100%' }}>
+                  <DataGrid rows={filteredDownloads} columns={columns} pageSizeOptions={[10, 25, 50, 100]} disableRowSelectionOnClick getRowId={(row) => row.id} />
+              </Box>
+              <ConfirmDialog isOpen={confirmDialog.isOpen} title={confirmDialog.title} message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))} type={confirmDialog.type} />
+            </>
+          )}
         </Box>
     );
 });

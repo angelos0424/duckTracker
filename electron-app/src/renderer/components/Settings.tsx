@@ -5,6 +5,7 @@ import { Box, Button, TextField, Select, MenuItem, FormControl, InputLabel, Chec
 import Grid from '@mui/material/Grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { useTranslation } from '../hooks/useTranslation';
+import './Settings.css';
 
 interface SettingsProps {
   settings: AppSettings;

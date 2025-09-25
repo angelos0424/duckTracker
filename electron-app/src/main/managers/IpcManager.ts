@@ -480,7 +480,7 @@ export class IpcManager {
             if (dependency === 'yt-dlp') {
               const isPackaged = app.isPackaged;
               const resourcesDir = isPackaged
-                ? path.join(process.resourcesPath, 'resources')
+                ? process.resourcesPath
                 : path.join(__dirname, '../../resources');
       
               let ytDlpFileName: string;

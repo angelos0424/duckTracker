@@ -302,12 +302,14 @@ export class ServerManager extends EventEmitter {
       try {
         if (currentTitle === '') {
           const metadata = await this.ytDlpWrap.getVideoInfo(data.url);
+          console.warn('Try getVideoInfo for title' + metadata.title)
           if (metadata.title) {
             currentTitle = metadata.title;
           }
         }
       } catch (error) {
         console.error('Failed to fetch metadata:', error);
+        console.error('Falling back to URL as title:', data.url);
       }
 
       this.ytDlpWrap.exec(downloadOptions, { shell: false, detached: true, windowsHide: true, windowsVerbatimArguments: true }, controller.signal)
@@ -364,6 +366,7 @@ export class ServerManager extends EventEmitter {
           }
 
           console.error('Download process error:', error);
+          console.error('downloadOptions:', downloadOptions.join(', '))
           this.activeDownloads.delete(data.urlId);
           const errorMessage = error.message || 'Failed during download process.';
           this.downloadsState.set(data.urlId, { status: 'error', url: data.url, urlId: data.urlId, title: currentTitle, error: errorMessage });
