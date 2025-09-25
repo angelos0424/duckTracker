@@ -10,5 +10,8 @@
   "keywords": ["youtube", "downloader", "ducktracker"],
   "author": "",
   "license": "MIT",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^9.4.1"
+  }
 }

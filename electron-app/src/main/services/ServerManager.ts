@@ -302,7 +302,6 @@ export class ServerManager extends EventEmitter {
       try {
         if (currentTitle === '') {
           const metadata = await this.ytDlpWrap.getVideoInfo(data.url);
-          console.warn('Try getVideoInfo for title' + metadata.title)
           if (metadata.title) {
             currentTitle = metadata.title;
           }

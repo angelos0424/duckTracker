@@ -3,6 +3,13 @@ const path = require('node:path');
 const EventEmitter = require('node:events');
 const readline = require('node:readline');
 const fs = require('node:fs');
+const {
+  recordDownloadQueued,
+  recordDownloadStart,
+  recordDownloadCompleted,
+  recordDownloadError,
+  recordDownloadStopped
+} = require('./database');
 
 function ensureDirectory(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -49,6 +56,8 @@ class DownloadManager extends EventEmitter {
       return false;
     }
 
+    console.log("Downloading " + request.urlId);
+
     ensureDirectory(this.config.downloadDir);
 
     const ytArgs = this.buildArgs(request.url);
@@ -67,19 +76,20 @@ class DownloadManager extends EventEmitter {
       };
       this.state.set(request.urlId, errorState);
       this.emit('state', errorState);
+      console.log('Download failed', error, errorState);
+      recordDownloadError({ urlId: request.urlId, url: request.url, error: error.message });
       return false;
     }
 
     const { child, containerName } = spawnResult;
-
 
     const downloadEntry = {
       request,
       child,
       filePath: '',
       stoppedManually: false,
-      dockerContainerName: containerName || null
-
+      dockerContainerName: containerName || null,
+      finishedEmitted: false
     };
 
     this.activeDownloads.set(request.urlId, downloadEntry);
@@ -92,12 +102,30 @@ class DownloadManager extends EventEmitter {
     };
     this.state.set(request.urlId, baseState);
     this.emit('state', baseState);
+    recordDownloadStart(request);
 
     const updateState = (partial) => {
       const existing = this.state.get(request.urlId) || baseState;
       const nextState = { ...existing, ...partial };
+      if (partial.status && partial.status !== 'error') {
+        delete nextState.error;
+      }
       this.state.set(request.urlId, nextState);
       this.emit('state', nextState);
+    };
+
+    const emitFinished = (overrides = {}) => {
+      if (downloadEntry.finishedEmitted) {
+        return;
+      }
+
+      const snapshot = {
+        ...(this.state.get(request.urlId) || {}),
+        ...overrides
+      };
+
+      downloadEntry.finishedEmitted = true;
+      this.emit('finished', snapshot);
     };
 
     const parseLine = (line) => {
@@ -126,12 +154,22 @@ class DownloadManager extends EventEmitter {
     };
 
     const stdoutReader = readline.createInterface({ input: child.stdout });
-    stdoutReader.on('line', parseLine);
+    stdoutReader.on('line', (line) => {
+      if (!line) return;
+      console.log('[yt-dlp][stdout]', line);
+      parseLine(line);
+    });
     const stderrReader = readline.createInterface({ input: child.stderr });
-    stderrReader.on('line', parseLine);
+    stderrReader.on('line', (line) => {
+      if (!line) return;
+      console.log('[yt-dlp][stderr]', line);
+      parseLine(line);
+    });
 
     child.on('error', (error) => {
-      updateState({ status: 'error', error: error.message });
+      updateState({ status: 'error', error: error.message, percent: 0 });
+      recordDownloadError({ urlId: request.urlId, url: request.url, error: error.message });
+      emitFinished({ status: 'error', error: error.message, percent: 0 });
       this.cleanup(request.urlId);
       this.tryStart();
     });
@@ -140,8 +178,15 @@ class DownloadManager extends EventEmitter {
       stdoutReader.close();
       stderrReader.close();
 
+      if (downloadEntry.finishedEmitted) {
+        this.cleanup(request.urlId);
+        this.tryStart();
+        return;
+      }
+
       if (downloadEntry.stoppedManually) {
         updateState({ status: 'stop', percent: 0 });
+        recordDownloadStopped({ urlId: request.urlId, url: request.url, error: 'stopped manually' });
         this.cleanup(request.urlId);
         this.tryStart();
         return;
@@ -149,14 +194,14 @@ class DownloadManager extends EventEmitter {
 
       if (code === 0) {
         const finalPath = downloadEntry.filePath || this.deriveFilePath(request.title || request.urlId);
-        updateState({ status: 'completed', percent: 100, filePath: finalPath });
-        this.emit('finished', {
-          urlId: request.urlId,
-          url: request.url,
-          filePath: finalPath
-        });
+        updateState({ status: 'completed', percent: 100, filePath: finalPath, error: undefined });
+        recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: finalPath });
+        emitFinished({ filePath: finalPath, percent: 100, status: 'completed', error: undefined });
       } else {
-        updateState({ status: 'error', error: `yt-dlp exited with code ${code}` });
+        const errorMessage = `yt-dlp exited with code ${code}`;
+        updateState({ status: 'error', error: errorMessage, percent: 0 });
+        recordDownloadError({ urlId: request.urlId, url: request.url, error: errorMessage });
+        emitFinished({ status: 'error', error: errorMessage, percent: 0 });
       }
 
       this.cleanup(request.urlId);
@@ -193,6 +238,7 @@ class DownloadManager extends EventEmitter {
   }
 
   schedule(request) {
+    recordDownloadQueued(request);
     if (this.activeDownloads.size >= this.config.maxConcurrent) {
       this.enqueue(request);
       return { queued: true };
@@ -206,6 +252,7 @@ class DownloadManager extends EventEmitter {
     const active = this.activeDownloads.get(urlId);
     if (active) {
       active.stoppedManually = true;
+      recordDownloadStopped({ urlId, url: active.request.url, error: 'stop requested' });
 
       if (active.dockerContainerName && this.config.runner?.type === 'docker') {
         const stopper = spawn(this.config.runner.dockerBin, ['stop', active.dockerContainerName]);
@@ -232,6 +279,7 @@ class DownloadManager extends EventEmitter {
         percent: 0
       });
       this.emit('state', this.state.get(urlId));
+      recordDownloadStopped({ urlId, url: entry.url, error: 'removed from queue' });
       return true;
     }
 
@@ -247,36 +295,42 @@ class DownloadManager extends EventEmitter {
   }
 
   spawnDownloadProcess(ytArgs, request) {
-    const runner = this.config.runner || { type: 'binary', ytDlpBinary: 'yt-dlp' };
+    let runner = this.config.runner || { type: 'binary', ytDlpBinary: 'yt-dlp' };
+    try {
+      if (runner.type === 'docker') {
+        if (!runner.volumesFrom) {
+          throw new Error('SERVER_CONTAINER_NAME must be set when using the docker runner.');
+        }
 
-    if (runner.type === 'docker') {
-      if (!runner.volumesFrom) {
-        throw new Error('SERVER_CONTAINER_NAME must be set when using the docker runner.');
+        const safeId = (request.urlId || 'job')
+          .toLowerCase()
+          .replace(/[^a-z0-9_.-]+/gu, '-');
+        const containerName = `ducktracker-dl-${safeId}-${Date.now()}`.slice(0, 63);
+        const dockerArgs = ['run', '--rm'];
+
+        if (runner.volumesFrom) {
+          dockerArgs.push('--volumes-from', runner.volumesFrom);
+        }
+
+        if (runner.workDir) {
+          dockerArgs.push('-w', runner.workDir);
+        }
+
+        dockerArgs.push('--name', containerName);
+        dockerArgs.push(runner.dockerImage);
+
+        // dockerArgs.push(runner.dockerCommand || 'yt-dlp');
+        dockerArgs.push(...ytArgs);
+
+        console.log('dockerArgs', dockerArgs);
+        const child = spawn(runner.dockerBin, dockerArgs, {
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        return { child, containerName };
       }
-
-      const safeId = (request.urlId || 'job')
-        .toLowerCase()
-        .replace(/[^a-z0-9_.-]+/gu, '-');
-      const containerName = `ducktracker-dl-${safeId}-${Date.now()}`.slice(0, 63);
-      const dockerArgs = ['run', '--rm'];
-
-      if (runner.volumesFrom) {
-        dockerArgs.push('--volumes-from', runner.volumesFrom);
-      }
-
-      if (runner.workDir) {
-        dockerArgs.push('-w', runner.workDir);
-      }
-
-      dockerArgs.push('--name', containerName);
-      dockerArgs.push(runner.dockerImage);
-      dockerArgs.push(...ytArgs);
-
-      const child = spawn(runner.dockerBin, dockerArgs, {
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
-
-      return { child, containerName };
+    } catch (e) {
+      console.error('spawnDownloadProcess', e);
     }
 
     const binary = runner.ytDlpBinary || 'yt-dlp';

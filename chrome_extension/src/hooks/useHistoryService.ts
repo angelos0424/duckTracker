@@ -1,12 +1,12 @@
 import { useContext, useState, useEffect, useCallback } from 'react';
 import { ServiceContext } from '../contexts/ServiceContext';
 import {DownloadObject} from "../services/Observer";
-import {ServerMessageStatus} from "../types";
+import {BrowserDownloadStatus} from "../types";
 
 export type BackgroundMessage = {
   action: string;
   text: {
-    status: ServerMessageStatus;
+    status: BrowserDownloadStatus;
     url: string;
     urlId: string;
     error?: string;
@@ -29,7 +29,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
 
       if (messageUrlId !== urlId) return;
 
-      if (data.status === 'completed') {
+      if (data.status === 'complete' || data.status === 'completed') {
         setIsDownloading(false);
         setPercent(100);
         saveHistory();

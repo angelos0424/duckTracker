@@ -1,7 +1,7 @@
 
 import { apiService } from './services/ApiService';
 import useHistoryStore from './store/index';
-import { ServerMessageStatus } from './types';
+import { ServerMessageStatus, BrowserDownloadStatus } from './types';
 
 type ServerMessage = {
   status: ServerMessageStatus;
@@ -11,6 +11,15 @@ type ServerMessage = {
   percent?: number;
   title: string;
 }
+
+type DownloadStatusMessage = {
+  urlId: string;
+  status: BrowserDownloadStatus;
+  percent: number;
+  error?: string;
+  url?: string;
+  title?: string;
+};
 
 const downloadInitiatorTabs = new Map<string, number>();
 
@@ -49,38 +58,93 @@ const sendMsgToAllYouTubeTabs = (action: string, data: any) => {
   });
 };
 
-const checkDownloads = async () => {
-  const downloads = await apiService.get('downloads');
-  for (const download of downloads) {
-    const data: ServerMessage = download;
-    const tabId = downloadInitiatorTabs.get(data.urlId);
-
-    useHistoryStore.getState().setSessionItem(data.urlId, data.title, data.status, data.percent, data.error);
-
-    const isDownloadFinished = data.status === 'completed' || data.status === 'error' || data.status === 'stop';
-
-    if (isDownloadFinished) {
-      downloadInitiatorTabs.delete(data.urlId);
-    }
-
-    if (tabId) {
-      if (data.status === 'completed') {
-        useHistoryStore.getState().addToHistory(data.urlId, data.title).then(() => {
-          console.log('completed', data);
-          sendMsg(tabId, 'download_status', data);
-        });
-      } else {
-        sendMsg(tabId, 'download_status', data);
-      }
-    } else {
-      if (isDownloadFinished) return; // Don't broadcast finished messages to all tabs
-      // If we don't know which tab started it (e.g. after a service worker restart),
-      // send to all YouTube tabs.
-      console.warn(`No specific tab found for urlId: ${data.urlId}. Broadcasting to all YouTube tabs.`);
-      sendMsgToAllYouTubeTabs('download_status', data);
-    }
+const toBrowserStatus = (status: ServerMessageStatus): BrowserDownloadStatus | null => {
+  if (status === 'completed') {
+    return 'complete';
   }
-}
+  if (status === 'error') {
+    return 'error';
+  }
+  if (status === 'progress') {
+    return 'progress';
+  }
+  if (status === 'downloading' || status === 'queued' || status === 'started') {
+    return 'progress';
+  }
+  if (status === 'stop') {
+    return 'error';
+  }
+
+  return null;
+};
+
+const buildDownloadStatusMessage = (data: ServerMessage): DownloadStatusMessage | null => {
+  const status = toBrowserStatus(data.status);
+  if (!status) {
+    return null;
+  }
+
+  const percent = status === 'complete'
+    ? 100
+    : typeof data.percent === 'number'
+      ? Math.max(0, Math.round(data.percent))
+      : 0;
+
+  return {
+    urlId: data.urlId,
+    status,
+    percent,
+    error: data.error,
+    url: data.url,
+    title: data.title,
+  };
+};
+
+const deliverDownloadUpdate = (data: ServerMessage) => {
+  if (!data || !data.urlId) {
+    return;
+  }
+
+  useHistoryStore.getState().setSessionItem(data.urlId, data.title, data.status, data.percent, data.error);
+
+  const message = buildDownloadStatusMessage(data);
+  if (!message) {
+    return;
+  }
+
+  const tabId = downloadInitiatorTabs.get(data.urlId);
+  const isDownloadFinished = data.status === 'completed' || data.status === 'error' || data.status === 'stop';
+
+  if (isDownloadFinished) {
+    downloadInitiatorTabs.delete(data.urlId);
+  }
+
+  if (typeof tabId === 'number') {
+    if (message.status === 'complete') {
+      useHistoryStore.getState().addToHistory(data.urlId, data.title).then(() => {
+        sendMsg(tabId, 'download_status', message);
+      });
+    } else {
+      sendMsg(tabId, 'download_status', message);
+    }
+    return;
+  }
+
+  if (isDownloadFinished && message.status !== 'progress') {
+    console.warn(`No specific tab found for urlId: ${data.urlId}. Skipping broadcast of finished download.`);
+    return;
+  }
+
+  console.warn(`No specific tab found for urlId: ${data.urlId}. Broadcasting progress to all YouTube tabs.`);
+  sendMsgToAllYouTubeTabs('download_status', message);
+};
+
+const checkDownloads = async () => {
+  const downloads = await apiService.get('downloads') as ServerMessage[];
+  for (const download of downloads) {
+    deliverDownloadUpdate(download);
+  }
+};
 
 let lastUrl = '';
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -129,11 +193,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'log') {
     if (tabId) sendMsg(tabId, message.action, message.text);
   } else if (message.action === 'download') {
-    if (tabId && message.text.urlId) {
+    if (typeof tabId === 'number' && message.text.urlId) {
       downloadInitiatorTabs.set(message.text.urlId, tabId);
-      apiService.post('download', message.text).then(res => {
-        sendMsg(tabId, 'download_status', res.data);
-      });
+      apiService.post('download', message.text)
+        .then((res: ServerMessage) => {
+          deliverDownloadUpdate(res);
+        })
+        .catch((error: unknown) => {
+          console.error('Download request failed', error);
+          const errorMessage = error instanceof Error ? error.message : 'Failed to start download';
+          const fallback: DownloadStatusMessage = {
+            urlId: message.text.urlId,
+            status: 'error',
+            percent: 0,
+            error: errorMessage,
+          };
+          sendMsg(tabId, 'download_status', fallback);
+        });
     } else {
       console.error('Download request received without tabId or urlId', message);
     }
@@ -165,14 +241,24 @@ function connectWebSocket() {
 
       console.log('Received message:', message);
 
-
-      if (message.type === 'download-finished') {
-        console.log('Download finished:', message.payload);
-        // You can add logic here to update the UI or notify the user
-      } else if (message.type === 'sync-history') {
-        const missingHistories = message.data;
-        console.log('Syncing missing histories:', missingHistories);
-        useHistoryStore.getState().syncHistoryFromServer(missingHistories)
+      switch (message.type) {
+        case 'download':
+          deliverDownloadUpdate(message.payload as ServerMessage);
+          break;
+        case 'download-finished':
+          deliverDownloadUpdate(message.payload as ServerMessage);
+          break;
+        case 'sync-history': {
+          const missingHistories = message.data;
+          console.log('Syncing missing histories:', missingHistories);
+          useHistoryStore.getState().syncHistoryFromServer(missingHistories);
+          break;
+        }
+        case 'download_status':
+          deliverDownloadUpdate(message.data as ServerMessage);
+          break;
+        default:
+          console.warn('Unhandled WebSocket message type:', message.type);
       }
     } catch (error) {
       console.error('Error parsing WebSocket message:', error);

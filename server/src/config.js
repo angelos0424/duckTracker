@@ -40,11 +40,13 @@ function buildRunner(downloadDir) {
     const dockerImage = process.env.YT_DLP_IMAGE || DEFAULT_YT_DLP_IMAGE;
     const dockerBin = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
     const volumesFrom = process.env.SERVER_CONTAINER_NAME || process.env.HOSTNAME || '';
+    const dockerCommand = process.env.YT_DLP_COMMAND || 'yt-dlp'
 
     return {
       type: 'docker',
       dockerBin,
       dockerImage,
+      dockerCommand,
       volumesFrom,
       workDir: downloadDir
     };
@@ -60,6 +62,9 @@ function loadConfig() {
   const rawDownloadDir = process.env.DOWNLOAD_DIR || DEFAULT_DOWNLOAD_DIR;
   const downloadDir = path.resolve(rawDownloadDir);
 
+  const rawDbPath = process.env.DB_PATH || path.join('/data', 'tracker.sqlite');
+  const dbPath = path.resolve(rawDbPath);
+
   const maxConcurrent = parseInteger(process.env.MAX_CONCURRENT_DOWNLOADS, 2);
   const httpPort = parseInteger(process.env.PORT || process.env.HTTP_PORT, 8080);
   const wsPath = process.env.WS_PATH || '/';
@@ -72,10 +77,12 @@ function loadConfig() {
   const ensureDir = process.env.SKIP_DIR_CREATION !== 'true';
   if (ensureDir) {
     fs.mkdirSync(downloadDir, { recursive: true });
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   }
 
   return {
     downloadDir,
+    dbPath,
     format,
     template,
     maxConcurrent,

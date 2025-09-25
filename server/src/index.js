@@ -3,8 +3,14 @@ const url = require('node:url');
 const { loadConfig } = require('./config');
 const { DownloadManager } = require('./download-manager');
 const { handleUpgrade } = require('./websocket-server');
+const {
+  initDatabase,
+  ensureUrlIds,
+  collectServerOnlyUrlIds
+} = require('./database');
 
 const config = loadConfig();
+initDatabase(config.dbPath);
 const downloadManager = new DownloadManager(config);
 const websocketClients = new Set();
 
@@ -65,9 +71,11 @@ function broadcast(message) {
 function handleWebSocketMessage(ws, rawMessage) {
   try {
     const parsed = JSON.parse(rawMessage);
-    if (parsed?.type === 'sync-history') {
-      // Echo back any missing entries request as empty payload for now.
-      ws.send(JSON.stringify({ type: 'sync-history', data: [] }));
+    if (parsed.type === 'sync-history') {
+      const incoming = Array.isArray(parsed.data) ? parsed.data : [];
+      const ensured = ensureUrlIds(incoming);
+      const serverOnly = collectServerOnlyUrlIds(ensured);
+      ws.send(JSON.stringify({ type: 'sync-history', data: serverOnly }));
       return;
     }
   } catch (error) {
@@ -92,6 +100,7 @@ async function handleDownload(req, res) {
   try {
     const body = await collectRequestBody(req);
     const { url: targetUrl, urlId, title } = body;
+
     if (!targetUrl || !urlId) {
       jsonResponse(res, 400, { error: 'url and urlId are required' });
       return;

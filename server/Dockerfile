@@ -4,15 +4,24 @@ WORKDIR /app
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    build-essential \
     docker.io \
     ffmpeg \
     python3 \
+    python3-venv \
     python3-pip \
-  && pip3 install --no-cache-dir yt-dlp \
   && rm -rf /var/lib/apt/lists/*
 
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN pip install --no-cache-dir yt-dlp
+
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev
+
 COPY src ./src
-COPY package.json ./
 
 ENV NODE_ENV=production
 

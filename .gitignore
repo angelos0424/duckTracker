@@ -22,3 +22,10 @@ electron-app/.electron-cache/
 electron-app.zip
 electron-app/resources/*
 electron-app/release/*
+
+# dist
+**/dist
+
+server/downloads
+
+chrome_extension/extension.zip
