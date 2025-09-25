@@ -60,7 +60,7 @@ const sendMsgToAllYouTubeTabs = (action: string, data: any) => {
 
 const toBrowserStatus = (status: ServerMessageStatus): BrowserDownloadStatus | null => {
   if (status === 'completed') {
-    return 'complete';
+    return 'completed';
   }
   if (status === 'error') {
     return 'error';
@@ -84,7 +84,7 @@ const buildDownloadStatusMessage = (data: ServerMessage): DownloadStatusMessage 
     return null;
   }
 
-  const percent = status === 'complete'
+  const percent = status === 'completed'
     ? 100
     : typeof data.percent === 'number'
       ? Math.max(0, Math.round(data.percent))
@@ -112,21 +112,16 @@ const deliverDownloadUpdate = (data: ServerMessage) => {
     return;
   }
 
-  const tabId = downloadInitiatorTabs.get(data.urlId);
-  const isDownloadFinished = data.status === 'completed' || data.status === 'error' || data.status === 'stop';
+  const isDownloadFinished = message.status === 'completed' || message.status === 'error';
 
   if (isDownloadFinished) {
     downloadInitiatorTabs.delete(data.urlId);
   }
 
-  if (typeof tabId === 'number') {
-    if (message.status === 'complete') {
-      useHistoryStore.getState().addToHistory(data.urlId, data.title).then(() => {
-        sendMsg(tabId, 'download_status', message);
-      });
-    } else {
-      sendMsg(tabId, 'download_status', message);
-    }
+  if (message.status === 'completed') {
+    useHistoryStore.getState().addToHistory(data.urlId, data.title).then(() => {
+      sendMsgToAllYouTubeTabs('download_status', message);
+    })
     return;
   }
 

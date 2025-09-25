@@ -8,7 +8,8 @@ const {
   recordDownloadStart,
   recordDownloadCompleted,
   recordDownloadError,
-  recordDownloadStopped
+  recordDownloadStopped,
+  recordDownloadTitle
 } = require('./database');
 
 function ensureDirectory(dirPath) {
@@ -89,7 +90,8 @@ class DownloadManager extends EventEmitter {
       filePath: '',
       stoppedManually: false,
       dockerContainerName: containerName || null,
-      finishedEmitted: false
+      finishedEmitted: false,
+      resolvedTitle: request.title || ''
     };
 
     this.activeDownloads.set(request.urlId, downloadEntry);
@@ -128,6 +130,17 @@ class DownloadManager extends EventEmitter {
       this.emit('finished', snapshot);
     };
 
+    const captureResolvedTitle = (titleCandidate) => {
+      const normalised = typeof titleCandidate === 'string' ? titleCandidate.trim() : '';
+      if (!normalised || normalised === downloadEntry.resolvedTitle) {
+        return;
+      }
+
+      downloadEntry.resolvedTitle = normalised;
+      updateState({ title: normalised });
+      recordDownloadTitle({ urlId: request.urlId, title: normalised });
+    };
+
     const parseLine = (line) => {
       if (!line) return;
       const percentMatch = line.match(/(\d+(?:\.\d+)?)%/u);
@@ -140,16 +153,21 @@ class DownloadManager extends EventEmitter {
         const candidate = line.slice(line.indexOf(destMarker) + destMarker.length).trim();
         if (candidate) {
           downloadEntry.filePath = candidate;
+          captureResolvedTitle(this.deriveTitleFromPath(candidate));
         }
       }
 
       if (/has already been downloaded/u.test(line)) {
-        updateState({
-          status: 'completed',
-          percent: 100,
-          filePath: downloadEntry.filePath || this.deriveFilePath(request.title || request.urlId)
-        });
-        this.finish(request.urlId, 0);
+        const inferredPath = downloadEntry.filePath || this.deriveFilePath(request.title || request.urlId);
+        captureResolvedTitle(downloadEntry.resolvedTitle || this.deriveTitleFromPath(inferredPath));
+        // updateState({
+        //   status: 'completed',
+        //   percent: 100,
+        //   filePath: inferredPath,
+        //   title: downloadEntry.resolvedTitle
+        // });
+        emitFinished({ status: 'completed', percent: 100, filePath: inferredPath, title: downloadEntry.resolvedTitle });
+        this.finish(request.urlId);
       }
     };
 
@@ -193,10 +211,12 @@ class DownloadManager extends EventEmitter {
       }
 
       if (code === 0) {
-        const finalPath = downloadEntry.filePath || this.deriveFilePath(request.title || request.urlId);
-        updateState({ status: 'completed', percent: 100, filePath: finalPath, error: undefined });
-        recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: finalPath });
-        emitFinished({ filePath: finalPath, percent: 100, status: 'completed', error: undefined });
+        const finalPath = downloadEntry.filePath || this.deriveFilePath(downloadEntry.resolvedTitle || request.title || request.urlId);
+        const finalTitle = downloadEntry.resolvedTitle || this.deriveTitleFromPath(finalPath);
+        captureResolvedTitle(finalTitle);
+        // updateState({ status: 'completed', percent: 100, filePath: finalPath, title: downloadEntry.resolvedTitle, error: undefined });
+        recordDownloadCompleted({ urlId: request.urlId, url: request.url });
+        emitFinished({ percent: 100, status: 'completed', filePath: finalPath, title: downloadEntry.resolvedTitle, error: undefined });
       } else {
         const errorMessage = `yt-dlp exited with code ${code}`;
         updateState({ status: 'error', error: errorMessage, percent: 0 });
@@ -209,12 +229,6 @@ class DownloadManager extends EventEmitter {
     });
 
     return true;
-  }
-
-  deriveFilePath(fallback) {
-    const safeName = fallback.replace(/[^a-z0-9\-_. ]+/giu, '_');
-    const outputName = this.config.template.replace('%(title)s', safeName).replace('%(ext)s', 'mp4');
-    return path.join(this.config.downloadDir, outputName);
   }
 
   buildArgs(url) {
@@ -235,6 +249,25 @@ class DownloadManager extends EventEmitter {
     }
 
     return args;
+  }
+
+  deriveFilePath(fallbackTitle) {
+    const safeName = (fallbackTitle || 'download')
+      .toString()
+      .replace(/[^a-z0-9\-_. ]+/giu, '_');
+    const outputName = this.config.template
+      .replace('%(title)s', safeName)
+      .replace('%(ext)s', 'mp4');
+    return path.join(this.config.downloadDir, outputName);
+  }
+
+  deriveTitleFromPath(filePath) {
+    if (!filePath) {
+      return '';
+    }
+
+    const parsed = path.parse(filePath);
+    return parsed.name || parsed.base || '';
   }
 
   schedule(request) {

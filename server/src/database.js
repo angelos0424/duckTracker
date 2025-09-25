@@ -11,13 +11,12 @@ function ensureStatements(db) {
 
   statements = {
     upsertDownload: db.prepare(`
-      INSERT INTO downloads (url_id, url, title, status, file_path, last_error)
-      VALUES (@urlId, @url, @title, @status, @filePath, @lastError)
+      INSERT INTO downloads (url_id, url, title, status, last_error)
+      VALUES (@urlId, @url, @title, @status, @lastError)
       ON CONFLICT(url_id) DO UPDATE SET
         url = excluded.url,
         title = excluded.title,
         status = excluded.status,
-        file_path = excluded.file_path,
         last_error = excluded.last_error,
         updated_at = CURRENT_TIMESTAMP
     `),
@@ -29,14 +28,19 @@ function ensureStatements(db) {
     setStatus: db.prepare(`
       UPDATE downloads
       SET status = @status,
-          file_path = COALESCE(@filePath, file_path),
           last_error = @lastError,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE url_id = @urlId
+    `),
+    setTitle: db.prepare(`
+      UPDATE downloads
+      SET title = @title,
           updated_at = CURRENT_TIMESTAMP
       WHERE url_id = @urlId
     `),
     selectAllIds: db.prepare('SELECT url_id FROM downloads'),
     selectState: db.prepare(`
-      SELECT url_id AS urlId, url, title, status, file_path AS filePath, last_error AS lastError
+      SELECT url_id AS urlId, url, title, status, last_error AS lastError
       FROM downloads
       WHERE url_id = ?
     `)
@@ -59,7 +63,6 @@ function initDatabase(dbPath) {
       url TEXT DEFAULT '',
       title TEXT DEFAULT '',
       status TEXT NOT NULL,
-      file_path TEXT,
       last_error TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -85,7 +88,6 @@ function recordDownloadStart(payload) {
     url: payload.url,
     title: payload.title || '',
     status: 'downloading',
-    filePath: payload.filePath || null,
     lastError: null
   });
 }
@@ -102,7 +104,6 @@ function recordDownloadQueued(payload) {
     url: payload.url,
     title: payload.title || '',
     status: 'queued',
-    filePath: payload.filePath || null,
     lastError: null
   });
 }
@@ -117,8 +118,24 @@ function recordDownloadCompleted(payload) {
   stmts.setStatus.run({
     urlId: payload.urlId,
     status: 'completed',
-    filePath: payload.filePath || null,
     lastError: null
+  });
+}
+
+function recordDownloadTitle(payload) {
+  const db = instance;
+  if (!db) {
+    throw new Error('Database not initialised');
+  }
+
+  if (!payload.title) {
+    return;
+  }
+
+  const stmts = ensureStatements(db);
+  stmts.setTitle.run({
+    urlId: payload.urlId,
+    title: payload.title
   });
 }
 
@@ -132,7 +149,6 @@ function recordDownloadError(payload) {
   stmts.setStatus.run({
     urlId: payload.urlId,
     status: 'error',
-    filePath: payload.filePath || null,
     lastError: payload.error || null
   });
 }
@@ -152,7 +168,7 @@ function ensureUrlIds(urlIds) {
   }
 
   const unique = Array.from(new Set(urlIds.filter((item) => typeof item === 'string' && item.trim())));
-
+  console.log('ensureUrlIds', unique.length)
   if (unique.length === 0) {
     return [];
   }
@@ -202,8 +218,8 @@ module.exports = {
   recordDownloadCompleted,
   recordDownloadError,
   recordDownloadStopped,
+  recordDownloadTitle,
   ensureUrlIds,
   collectServerOnlyUrlIds,
   getDownloadState
 };
-

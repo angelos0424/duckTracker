@@ -71,10 +71,12 @@ function broadcast(message) {
 function handleWebSocketMessage(ws, rawMessage) {
   try {
     const parsed = JSON.parse(rawMessage);
+
     if (parsed.type === 'sync-history') {
-      const incoming = Array.isArray(parsed.data) ? parsed.data : [];
+      const incoming = Array.isArray(parsed.data.data) ? parsed.data.data : [];
       const ensured = ensureUrlIds(incoming);
       const serverOnly = collectServerOnlyUrlIds(ensured);
+
       ws.send(JSON.stringify({ type: 'sync-history', data: serverOnly }));
       return;
     }
@@ -119,7 +121,7 @@ async function handleDownload(req, res) {
       queued: scheduleResult.queued
     });
   } catch (error) {
-    jsonResponse(res, 500, { error: error.message });
+    jsonResponse(res, 500,  { error: error.message });
   }
 }
 

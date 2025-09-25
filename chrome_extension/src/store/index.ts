@@ -64,7 +64,8 @@ const useHistoryStore = create<HistoryState & HistoryActions>((set, get) => ({
       const history = await getHistoryItems();
 
       if (history.data.includes(urlId)) {
-        await deleteHistoryItem(urlId);
+        // Todo check 버튼으로 들어왔을 때만 delete 처리
+        // await deleteHistoryItem(urlId);
         return false;
       } else {
         const res = await setHistoryItem(urlId, title);
