@@ -2,9 +2,9 @@
 .idea
 .vscode
 **/.env
-server/*
+server/node_modules/
+server/*.log
 server/.DS_Store
-server/**/*
 
 chrome_extension/dist
 chrome_extension/node_modules
