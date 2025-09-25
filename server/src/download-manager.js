@@ -52,15 +52,34 @@ class DownloadManager extends EventEmitter {
     ensureDirectory(this.config.downloadDir);
 
     const ytArgs = this.buildArgs(request.url);
-    const child = spawn(this.config.ytDlpBinary, ytArgs, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
+
+    let spawnResult;
+    try {
+      spawnResult = this.spawnDownloadProcess(ytArgs, request);
+    } catch (error) {
+      const errorState = {
+        status: 'error',
+        url: request.url,
+        urlId: request.urlId,
+        title: request.title || '',
+        percent: 0,
+        error: error.message
+      };
+      this.state.set(request.urlId, errorState);
+      this.emit('state', errorState);
+      return false;
+    }
+
+    const { child, containerName } = spawnResult;
+
 
     const downloadEntry = {
       request,
       child,
       filePath: '',
-      stoppedManually: false
+      stoppedManually: false,
+      dockerContainerName: containerName || null
+
     };
 
     this.activeDownloads.set(request.urlId, downloadEntry);
@@ -187,7 +206,18 @@ class DownloadManager extends EventEmitter {
     const active = this.activeDownloads.get(urlId);
     if (active) {
       active.stoppedManually = true;
-      active.child.kill('SIGTERM');
+
+      if (active.dockerContainerName && this.config.runner?.type === 'docker') {
+        const stopper = spawn(this.config.runner.dockerBin, ['stop', active.dockerContainerName]);
+        stopper.on('error', () => {
+          if (active.child.exitCode === null) {
+            active.child.kill('SIGTERM');
+          }
+        });
+      } else {
+        active.child.kill('SIGTERM');
+      }
+
       return true;
     }
 
@@ -214,6 +244,46 @@ class DownloadManager extends EventEmitter {
 
   finish(urlId) {
     this.cleanup(urlId);
+  }
+
+  spawnDownloadProcess(ytArgs, request) {
+    const runner = this.config.runner || { type: 'binary', ytDlpBinary: 'yt-dlp' };
+
+    if (runner.type === 'docker') {
+      if (!runner.volumesFrom) {
+        throw new Error('SERVER_CONTAINER_NAME must be set when using the docker runner.');
+      }
+
+      const safeId = (request.urlId || 'job')
+        .toLowerCase()
+        .replace(/[^a-z0-9_.-]+/gu, '-');
+      const containerName = `ducktracker-dl-${safeId}-${Date.now()}`.slice(0, 63);
+      const dockerArgs = ['run', '--rm'];
+
+      if (runner.volumesFrom) {
+        dockerArgs.push('--volumes-from', runner.volumesFrom);
+      }
+
+      if (runner.workDir) {
+        dockerArgs.push('-w', runner.workDir);
+      }
+
+      dockerArgs.push('--name', containerName);
+      dockerArgs.push(runner.dockerImage);
+      dockerArgs.push(...ytArgs);
+
+      const child = spawn(runner.dockerBin, dockerArgs, {
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      return { child, containerName };
+    }
+
+    const binary = runner.ytDlpBinary || 'yt-dlp';
+    const child = spawn(binary, ytArgs, {
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    return { child, containerName: null };
   }
 }
 
