@@ -1,0 +1,19 @@
+services:
+  ducktracker-server:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ducktracker.entryPoints=http,https"
+      - "traefik.http.routers.ducktracker.rule=Host(`ducktracker.ddunddun.shop`)"
+      - "traefik.http.routers.ducktracker.middlewares=gzip,redirect-to-https"
+      - "traefik.http.services.ducktracker.loadbalancer.server.port=${PORT:-8080}"
+      - "coolify.managed=true"
+      - "coolify.type=application"
+      - "coolify.environmentName=production"
+    expose:
+      - "${PORT:-8080}"
+    networks:
+      - ducknet
+
+networks:
+  ducknet:
+    external: true
