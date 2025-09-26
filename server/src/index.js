@@ -1,5 +1,7 @@
 const http = require('node:http');
 const url = require('node:url');
+const fs = require('node:fs');
+const path = require('node:path');
 const { loadConfig } = require('./config');
 const { DownloadManager } = require('./download-manager');
 const { handleUpgrade } = require('./websocket-server');
@@ -7,7 +9,9 @@ const {
   initDatabase,
   ensureUrlIds,
   collectServerOnlyUrlIds,
-  searchDownloads
+  searchDownloads,
+  getDownloadState,
+  deleteDownloads
 } = require('./database');
 const { renderHistoryPage } = require('./history-page');
 
@@ -77,6 +81,49 @@ function broadcast(message) {
   }
 }
 
+function isPathInside(baseDir, candidatePath) {
+  const relative = path.relative(baseDir, candidatePath);
+  return !!relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function isValidUrl(candidate) {
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (error) {
+    return false;
+  }
+}
+
+function deriveUrlIdFromUrl(targetUrl) {
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.searchParams.has('list')) {
+      return parsed.searchParams.get('list');
+    }
+
+    const pathname = parsed.pathname || '';
+    const shortsMatch = pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/u);
+    if (shortsMatch && shortsMatch[1]) {
+      return shortsMatch[1];
+    }
+
+    const watchId = parsed.searchParams.get('v');
+    if (watchId) {
+      return watchId;
+    }
+
+    const youtuMatch = pathname.match(/\/([a-zA-Z0-9_-]{11})$/u);
+    if (parsed.hostname === 'youtu.be' && youtuMatch && youtuMatch[1]) {
+      return youtuMatch[1];
+    }
+
+    return parsed.href;
+  } catch (error) {
+    return null;
+  }
+}
+
 function handleWebSocketMessage(ws, rawMessage) {
   try {
     const parsed = JSON.parse(rawMessage);
@@ -131,6 +178,134 @@ async function handleDownload(req, res) {
     });
   } catch (error) {
     jsonResponse(res, 500,  { error: error.message });
+  }
+}
+
+async function handleHistoryDownloadRequest(req, res) {
+  try {
+    const body = await collectRequestBody(req);
+    const { url: targetUrl } = body;
+
+    if (!targetUrl || typeof targetUrl !== 'string' || !isValidUrl(targetUrl)) {
+      jsonResponse(res, 400, { error: 'A valid URL is required.' });
+      return;
+    }
+
+    const derivedId = deriveUrlIdFromUrl(targetUrl);
+    if (!derivedId) {
+      jsonResponse(res, 400, { error: 'Could not determine URL identifier.' });
+      return;
+    }
+
+    const existing = downloadManager.getState(derivedId);
+    if (existing && ['downloading', 'queued'].includes(existing.status)) {
+      jsonResponse(res, 200, existing);
+      return;
+    }
+
+    const scheduleResult = downloadManager.schedule({ url: targetUrl, urlId: derivedId, title: '' });
+    const updatedState = downloadManager.getState(derivedId) || {
+      url: targetUrl,
+      urlId: derivedId,
+      status: scheduleResult.queued ? 'queued' : 'downloading',
+      percent: 0
+    };
+    jsonResponse(res, 200, {
+      ...updatedState,
+      queued: scheduleResult.queued
+    });
+  } catch (error) {
+    jsonResponse(res, 500, { error: error.message });
+  }
+}
+
+async function handleHistoryDelete(req, res, urlId) {
+  try {
+    if (!urlId) {
+      jsonResponse(res, 400, { error: 'urlId is required' });
+      return;
+    }
+
+    const existingState = downloadManager.getState(urlId);
+    if (existingState && ['downloading', 'queued'].includes(existingState.status)) {
+      downloadManager.stop(urlId);
+    }
+
+    const deleted = deleteDownloads([urlId]);
+    if (!deleted || deleted.length === 0) {
+      jsonResponse(res, 404, { error: 'Record not found' });
+      return;
+    }
+
+    const results = await Promise.all(deleted.map(async ({ filePath, urlId: deletedId }) => {
+      if (!filePath) {
+        return { urlId: deletedId, fileRemoved: false };
+      }
+
+      const resolved = path.resolve(filePath);
+      if (!isPathInside(config.downloadDir, resolved)) {
+        return { urlId: deletedId, fileRemoved: false, reason: 'outside-download-dir' };
+      }
+
+      try {
+        await fs.promises.unlink(resolved);
+        return { urlId: deletedId, fileRemoved: true };
+      } catch (error) {
+        if (error && error.code === 'ENOENT') {
+          return { urlId: deletedId, fileRemoved: false, reason: 'not-found' };
+        }
+        return { urlId: deletedId, fileRemoved: false, reason: 'unlink-failed' };
+      }
+    }));
+
+    jsonResponse(res, 200, { success: true, results });
+  } catch (error) {
+    jsonResponse(res, 500, { error: error.message });
+  }
+}
+
+function handleHistoryFileDownload(req, res, urlId) {
+  try {
+    if (!urlId) {
+      jsonResponse(res, 400, { error: 'urlId is required' });
+      return;
+    }
+
+    const record = getDownloadState(urlId);
+    if (!record || !record.filePath) {
+      jsonResponse(res, 404, { error: 'File not available' });
+      return;
+    }
+
+    const resolved = path.resolve(record.filePath);
+    if (!isPathInside(config.downloadDir, resolved)) {
+      jsonResponse(res, 403, { error: 'File outside of download directory' });
+      return;
+    }
+
+    fs.stat(resolved, (statError, stats) => {
+      if (statError) {
+        jsonResponse(res, statError.code === 'ENOENT' ? 404 : 500, { error: 'File not found' });
+        return;
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': stats.size,
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(path.basename(resolved))}"`
+      });
+
+      const stream = fs.createReadStream(resolved);
+      stream.on('error', () => {
+        if (!res.headersSent) {
+          res.writeHead(500);
+        }
+        res.end();
+      });
+      stream.pipe(res);
+    });
+  } catch (error) {
+    jsonResponse(res, 500, { error: error.message });
   }
 }
 
@@ -208,6 +383,27 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && parsedUrl.pathname === '/history') {
     handleHistory(req, res, parsedUrl.query || {});
     return;
+  }
+
+  if (req.method === 'POST' && parsedUrl.pathname === '/history/request-download') {
+    handleHistoryDownloadRequest(req, res);
+    return;
+  }
+
+  if (req.method === 'DELETE' && parsedUrl.pathname && parsedUrl.pathname.startsWith('/history/')) {
+    const segments = parsedUrl.pathname.split('/').filter(Boolean);
+    if (segments.length === 2) {
+      handleHistoryDelete(req, res, decodeURIComponent(segments[1]));
+      return;
+    }
+  }
+
+  if (req.method === 'GET' && parsedUrl.pathname && parsedUrl.pathname.startsWith('/history/')) {
+    const segments = parsedUrl.pathname.split('/').filter(Boolean);
+    if (segments.length === 3 && segments[2] === 'file') {
+      handleHistoryFileDownload(req, res, decodeURIComponent(segments[1]));
+      return;
+    }
   }
 
   if (req.method === 'GET' && parsedUrl.pathname === '/downloads') {

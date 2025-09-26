@@ -9,7 +9,8 @@ const {
   recordDownloadCompleted,
   recordDownloadError,
   recordDownloadStopped,
-  recordDownloadTitle
+  recordDownloadTitle,
+  recordDownloadFilePath
 } = require('./database');
 
 function ensureDirectory(dirPath) {
@@ -154,18 +155,14 @@ class DownloadManager extends EventEmitter {
         if (candidate) {
           downloadEntry.filePath = candidate;
           captureResolvedTitle(this.deriveTitleFromPath(candidate));
+          recordDownloadFilePath({ urlId: request.urlId, filePath: candidate });
         }
       }
 
       if (/has already been downloaded/u.test(line)) {
         const inferredPath = downloadEntry.filePath || this.deriveFilePath(request.title || request.urlId);
         captureResolvedTitle(downloadEntry.resolvedTitle || this.deriveTitleFromPath(inferredPath));
-        // updateState({
-        //   status: 'completed',
-        //   percent: 100,
-        //   filePath: inferredPath,
-        //   title: downloadEntry.resolvedTitle
-        // });
+        recordDownloadFilePath({ urlId: request.urlId, filePath: inferredPath });
         emitFinished({ status: 'completed', percent: 100, filePath: inferredPath, title: downloadEntry.resolvedTitle });
         this.finish(request.urlId);
       }
@@ -216,7 +213,7 @@ class DownloadManager extends EventEmitter {
         const finalTitle = downloadEntry.resolvedTitle || this.deriveTitleFromPath(finalPath);
         captureResolvedTitle(finalTitle);
         // updateState({ status: 'completed', percent: 100, filePath: finalPath, title: downloadEntry.resolvedTitle, error: undefined });
-        recordDownloadCompleted({ urlId: request.urlId, url: request.url });
+        recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: finalPath });
         emitFinished({ percent: 100, status: 'completed', filePath: finalPath, title: downloadEntry.resolvedTitle, error: undefined });
       } else {
         const errorMessage = `yt-dlp exited with code ${code}`;
