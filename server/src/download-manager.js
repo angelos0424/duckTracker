@@ -185,6 +185,7 @@ class DownloadManager extends EventEmitter {
     });
 
     child.on('error', (error) => {
+      console.error('Download failed', error);
       updateState({ status: 'error', error: error.message, percent: 0 });
       recordDownloadError({ urlId: request.urlId, url: request.url, error: error.message });
       emitFinished({ status: 'error', error: error.message, percent: 0 });
@@ -240,6 +241,7 @@ class DownloadManager extends EventEmitter {
       this.config.template,
       '-f',
       this.config.format,
+      '--cookies-from-browser chrome',
       '--newline'
     ];
 
