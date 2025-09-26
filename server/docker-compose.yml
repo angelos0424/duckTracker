@@ -20,6 +20,7 @@ services:
       - "${PORT:-8080}:8080"
 
     volumes:
+      - ${CHROME_PROFILE_PATH}:/root/.config/google-chrome:ro
       - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads
       - tracker-db:/data
       - /var/run/docker.sock:/var/run/docker.sock

@@ -40,7 +40,9 @@ function buildRunner(downloadDir) {
     const dockerImage = process.env.YT_DLP_IMAGE || DEFAULT_YT_DLP_IMAGE;
     const dockerBin = process.env.DOCKER_BIN || DEFAULT_DOCKER_BIN;
     const volumesFrom = process.env.SERVER_CONTAINER_NAME || process.env.HOSTNAME || '';
-    const dockerCommand = process.env.YT_DLP_COMMAND || 'yt-dlp'
+    const dockerCommand = process.env.YT_DLP_COMMAND || 'yt-dlp';
+    const cookieFilePath = process.env.COOKIE_FILE_PATH || '';
+    const chromePath = process.env.CHROME_PROFILE_PATH || '';
 
     return {
       type: 'docker',
@@ -48,13 +50,17 @@ function buildRunner(downloadDir) {
       dockerImage,
       dockerCommand,
       volumesFrom,
+      cookieFilePath,
+      chromePath,
       workDir: downloadDir
     };
   }
 
   return {
     type: 'binary',
-    ytDlpBinary: process.env.YT_DLP_BINARY || 'yt-dlp'
+    ytDlpBinary: process.env.YT_DLP_BINARY || 'yt-dlp',
+    cookieFilePath: process.env.COOKIE_FILE_PATH,
+    chromePath: process.env.CHROME_PROFILE_PATH
   };
 }
 

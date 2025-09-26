@@ -233,6 +233,20 @@ class DownloadManager extends EventEmitter {
   }
 
   buildArgs(url) {
+    let cookieSetting = '';
+    const cookieFilePath = this.config.runner.cookieFilePath;
+    const chromePath = this.config.runner.chromePath;
+
+    if (!cookieFilePath && !chromePath) {
+      throw new Error('cookieFilePath or chromePath must be set');
+    }
+
+    if (cookieFilePath) {
+      cookieSetting = `--cookies ${cookieFilePath}`;
+    } else if (chromePath) {
+      cookieSetting = `--cookies-from-browser ${chromePath}`;
+    }
+
     const args = [
       url,
       '-P',
@@ -241,7 +255,7 @@ class DownloadManager extends EventEmitter {
       this.config.template,
       '-f',
       this.config.format,
-      '--cookies /app/cookies.txt',
+      cookieSetting,
       '--newline'
     ];
 
