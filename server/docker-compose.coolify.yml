@@ -11,9 +11,3 @@ services:
       - "coolify.environmentName=production"
     expose:
       - "${PORT:-8080}"
-    networks:
-      - ducknet
-
-networks:
-  ducknet:
-    external: true
