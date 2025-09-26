@@ -26,6 +26,143 @@ class DownloadManager extends EventEmitter {
     this.state = new Map();
   }
 
+  isPathInsideDownloadDir(candidate) {
+    if (!candidate) {
+      return false;
+    }
+
+    const relative = path.relative(this.config.downloadDir, candidate);
+    if (relative === '') {
+      return true;
+    }
+
+    return !relative.startsWith('..') && !path.isAbsolute(relative);
+  }
+
+  resolveDownloadPath(rawPath) {
+    if (!rawPath) {
+      return '';
+    }
+
+    const trimmed = rawPath.trim();
+    if (!trimmed) {
+      return '';
+    }
+
+    const normalised = path.normalize(trimmed);
+    const absolute = path.isAbsolute(normalised)
+      ? normalised
+      : path.resolve(this.config.downloadDir, normalised);
+
+    if (!this.isPathInsideDownloadDir(absolute)) {
+      return '';
+    }
+
+    return absolute;
+  }
+
+  sanitisePathSegment(value, fallback) {
+    const base = (value || '').toString().trim();
+    const cleaned = base
+      .replace(/[^a-z0-9\-_. \[\]\(\)]+/giu, '_')
+      .replace(/\s+/gu, ' ')
+      .trim();
+    const candidate = cleaned || fallback || '';
+    return candidate.replace(/^[.\s]+|[.\s]+$/gu, '') || fallback || '';
+  }
+
+  deriveFilePath({ titleCandidate, urlId, ext }) {
+    const rawExt = this.sanitisePathSegment(ext || 'mp4', 'mp4');
+    const safeExt = rawExt.replace(/^\.+/u, '') || 'mp4';
+    const safeTitle = this.sanitisePathSegment(titleCandidate || urlId || 'download', 'download');
+    const safeId = this.sanitisePathSegment(urlId || '', '');
+
+    const replacements = new Map([
+      ['%(title)s', safeTitle],
+      ['%(id)s', safeId],
+      ['%(ext)s', safeExt]
+    ]);
+
+    let template = this.config.template || '%(title)s.%(ext)s';
+    for (const [token, replacement] of replacements.entries()) {
+      if (!replacement && token !== '%(id)s') {
+        continue;
+      }
+      template = template.split(token).join(replacement);
+    }
+
+    if (safeId === '') {
+      template = template.replace(/\s*\[\s*\]\s*/gu, '');
+    }
+
+    if (!this.config.template.includes('%(ext)s') && !template.includes('.')) {
+      template = `${template}.${safeExt}`;
+    }
+
+    const segments = template
+      .split(/[\\/]+/u)
+      .map((segment, index) => this.sanitisePathSegment(segment, index === 0 ? safeTitle : safeTitle))
+      .filter(Boolean);
+
+    if (segments.length === 0) {
+      segments.push(safeTitle);
+    }
+
+    const candidatePath = segments.join(path.sep);
+    const resolved = this.resolveDownloadPath(candidatePath);
+    if (resolved) {
+      return resolved;
+    }
+
+    return path.join(this.config.downloadDir, `${safeTitle}.${safeExt}`);
+  }
+
+  findExistingFileById(urlId) {
+    if (!urlId) {
+      return '';
+    }
+
+    const upperBound = 2000;
+    const stack = [this.config.downloadDir];
+    let inspected = 0;
+
+    while (stack.length > 0) {
+      const currentDir = stack.pop();
+      let entries;
+      try {
+        entries = fs.readdirSync(currentDir, { withFileTypes: true });
+      } catch (error) {
+        continue;
+      }
+
+      for (const entry of entries) {
+        inspected += 1;
+        if (inspected > upperBound) {
+          return '';
+        }
+
+        const entryPath = path.join(currentDir, entry.name);
+        if (entry.isSymbolicLink && entry.isSymbolicLink()) {
+          continue;
+        }
+
+        if (entry.isDirectory && entry.isDirectory()) {
+          stack.push(entryPath);
+          continue;
+        }
+
+        if (entry.isFile && entry.isFile() && entry.name.includes(urlId)) {
+          const resolved = this.resolveDownloadPath(entryPath);
+          if (resolved) {
+            return resolved;
+          }
+        }
+      }
+    }
+
+    return '';
+  }
+
   getStateList() {
     return Array.from(this.state.values()).map((entry) => ({ ...entry }));
   }
@@ -153,15 +290,22 @@ class DownloadManager extends EventEmitter {
       const destMarker = 'Destination:';
       if (line.includes(destMarker)) {
         const candidate = line.slice(line.indexOf(destMarker) + destMarker.length).trim();
-        if (candidate) {
-          downloadEntry.filePath = candidate;
-          captureResolvedTitle(this.deriveTitleFromPath(candidate));
-          recordDownloadFilePath({ urlId: request.urlId, filePath: candidate });
+        const resolvedPath = this.resolveDownloadPath(candidate);
+        if (resolvedPath) {
+          downloadEntry.filePath = resolvedPath;
+          captureResolvedTitle(this.deriveTitleFromPath(resolvedPath));
+          recordDownloadFilePath({ urlId: request.urlId, filePath: resolvedPath });
         }
       }
 
       if (/has already been downloaded/u.test(line)) {
-        const inferredPath = downloadEntry.filePath || this.deriveFilePath(request.title || request.urlId);
+        const inferredPath = downloadEntry.filePath
+          || this.findExistingFileById(request.urlId)
+          || this.deriveFilePath({
+            titleCandidate: downloadEntry.resolvedTitle || request.title || request.urlId,
+            urlId: request.urlId,
+            ext: 'mp4'
+          });
         captureResolvedTitle(downloadEntry.resolvedTitle || this.deriveTitleFromPath(inferredPath));
         recordDownloadFilePath({ urlId: request.urlId, filePath: inferredPath });
         emitFinished({ status: 'completed', percent: 100, filePath: inferredPath, title: downloadEntry.resolvedTitle });
@@ -210,7 +354,13 @@ class DownloadManager extends EventEmitter {
       }
 
       if (code === 0) {
-        const finalPath = downloadEntry.filePath || this.deriveFilePath(downloadEntry.resolvedTitle || request.title || request.urlId);
+        const finalPath = downloadEntry.filePath
+          || this.findExistingFileById(request.urlId)
+          || this.deriveFilePath({
+            titleCandidate: downloadEntry.resolvedTitle || request.title || request.urlId,
+            urlId: request.urlId,
+            ext: path.extname(downloadEntry.filePath || '') || 'mp4'
+          });
         const finalTitle = downloadEntry.resolvedTitle || this.deriveTitleFromPath(finalPath);
         captureResolvedTitle(finalTitle);
         // updateState({ status: 'completed', percent: 100, filePath: finalPath, title: downloadEntry.resolvedTitle, error: undefined });
@@ -265,16 +415,6 @@ class DownloadManager extends EventEmitter {
     }
 
     return args;
-  }
-
-  deriveFilePath(fallbackTitle) {
-    const safeName = (fallbackTitle || 'download')
-      .toString()
-      .replace(/[^a-z0-9\-_. ]+/giu, '_');
-    const outputName = this.config.template
-      .replace('%(title)s', safeName)
-      .replace('%(ext)s', 'mp4');
-    return path.join(this.config.downloadDir, outputName);
   }
 
   deriveTitleFromPath(filePath) {

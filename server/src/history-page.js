@@ -678,6 +678,7 @@ function renderHistoryPage({
             }
             const urlId = button.dataset.urlId;
             if (!urlId) return;
+            // Todo 브라우저로 다운로드 할 수 있게 처리.
             window.location.href = \`/history/\${encodeURIComponent(urlId)}/file\`;
           });
         });

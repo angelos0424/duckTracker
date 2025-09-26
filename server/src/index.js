@@ -11,6 +11,7 @@ const {
   collectServerOnlyUrlIds,
   searchDownloads,
   getDownloadState,
+  recordDownloadFilePath,
   deleteDownloads
 } = require('./database');
 const { renderHistoryPage } = require('./history-page');
@@ -83,7 +84,32 @@ function broadcast(message) {
 
 function isPathInside(baseDir, candidatePath) {
   const relative = path.relative(baseDir, candidatePath);
-  return !!relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+  if (relative === '') {
+    return true;
+  }
+  return !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function resolveWithinDownloadDir(filePath) {
+  if (!filePath) {
+    return '';
+  }
+
+  const trimmed = typeof filePath === 'string' ? filePath.trim() : '';
+  if (!trimmed) {
+    return '';
+  }
+
+  const normalised = path.normalize(trimmed);
+  const absolute = path.isAbsolute(normalised)
+    ? normalised
+    : path.resolve(config.downloadDir, normalised);
+
+  if (!isPathInside(config.downloadDir, absolute)) {
+    return '';
+  }
+
+  return absolute;
 }
 
 function isValidUrl(candidate) {
@@ -242,8 +268,8 @@ async function handleHistoryDelete(req, res, urlId) {
         return { urlId: deletedId, fileRemoved: false };
       }
 
-      const resolved = path.resolve(filePath);
-      if (!isPathInside(config.downloadDir, resolved)) {
+      const resolved = resolveWithinDownloadDir(filePath);
+      if (!resolved) {
         return { urlId: deletedId, fileRemoved: false, reason: 'outside-download-dir' };
       }
 
@@ -264,7 +290,7 @@ async function handleHistoryDelete(req, res, urlId) {
   }
 }
 
-function handleHistoryFileDownload(req, res, urlId) {
+async function handleHistoryFileDownload(req, res, urlId) {
   try {
     if (!urlId) {
       jsonResponse(res, 400, { error: 'urlId is required' });
@@ -277,33 +303,57 @@ function handleHistoryFileDownload(req, res, urlId) {
       return;
     }
 
-    const resolved = path.resolve(record.filePath);
-    if (!isPathInside(config.downloadDir, resolved)) {
+    let resolved = resolveWithinDownloadDir(record.filePath);
+    if (!resolved) {
       jsonResponse(res, 403, { error: 'File outside of download directory' });
       return;
     }
 
-    fs.stat(resolved, (statError, stats) => {
-      if (statError) {
-        jsonResponse(res, statError.code === 'ENOENT' ? 404 : 500, { error: 'File not found' });
+    let stats;
+    try {
+      stats = await fs.promises.stat(resolved);
+    } catch (statError) {
+      if (statError && statError.code === 'ENOENT') {
+        const fallback = downloadManager.findExistingFileById(urlId);
+        if (!fallback) {
+          jsonResponse(res, 404, { error: 'File not found' });
+          return;
+        }
+
+        const normalisedFallback = resolveWithinDownloadDir(fallback);
+        if (!normalisedFallback) {
+          jsonResponse(res, 403, { error: 'File outside of download directory' });
+          return;
+        }
+
+        try {
+          stats = await fs.promises.stat(normalisedFallback);
+          resolved = normalisedFallback;
+          recordDownloadFilePath({ urlId, filePath: resolved });
+        } catch (fallbackError) {
+          jsonResponse(res, fallbackError.code === 'ENOENT' ? 404 : 500, { error: 'File not found' });
+          return;
+        }
+      } else {
+        jsonResponse(res, 500, { error: 'File not found' });
         return;
       }
+    }
 
-      res.writeHead(200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': stats.size,
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(path.basename(resolved))}"`
-      });
-
-      const stream = fs.createReadStream(resolved);
-      stream.on('error', () => {
-        if (!res.headersSent) {
-          res.writeHead(500);
-        }
-        res.end();
-      });
-      stream.pipe(res);
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': stats.size,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(path.basename(resolved))}"`
     });
+
+    const stream = fs.createReadStream(resolved);
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.writeHead(500);
+      }
+      res.end();
+    });
+    stream.pipe(res);
   } catch (error) {
     jsonResponse(res, 500, { error: error.message });
   }

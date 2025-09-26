@@ -3,7 +3,7 @@ const fs = require('node:fs');
 
 const DEFAULT_DOWNLOAD_DIR = '/downloads';
 const DEFAULT_FORMAT = 'bestvideo+bestaudio/best';
-const DEFAULT_TEMPLATE = '%(title)s.%(ext)s';
+const DEFAULT_TEMPLATE = '%(id)s.%(ext)s';
 const DEFAULT_YT_DLP_IMAGE = 'ghcr.io/yt-dlp/yt-dlp:latest';
 const DEFAULT_DOCKER_BIN = 'docker';
 
