@@ -10,7 +10,17 @@ RUN apt-get update \
     python3 \
     python3-venv \
     python3-pip \
+    locales \
   && rm -rf /var/lib/apt/lists/*
+
+# 로케일 생성 (ko_KR.UTF-8)
+RUN sed -i '/ko_KR.UTF-8/s/^# //g' /etc/locale.gen \
+  && locale-gen ko_KR.UTF-8
+
+# 로케일 환경변수 설정
+ENV LANG=ko_KR.UTF-8
+ENV LANGUAGE=ko_KR:ko:en
+ENV LC_ALL=ko_KR.UTF-8
 
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -18,7 +28,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir yt-dlp
 
 COPY package.json package-lock.json ./
-
 RUN npm ci --omit=dev
 
 COPY src ./src
