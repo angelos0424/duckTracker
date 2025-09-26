@@ -21,7 +21,7 @@ services:
     expose:
       - "${PORT:-8080}"   # Traefik이 내부 포트로 접근
     volumes:
-      - ${HOST_DOWNLOAD_DIR}:/downloads # cookies.txt 넣어야함.
+      - /home/ubuntu/downloads:/downloads # cookies.txt 넣어야함.
       - tracker-db:/data
       - /var/run/docker.sock:/var/run/docker.sock
 volumes:
