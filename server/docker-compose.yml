@@ -18,6 +18,8 @@ services:
       - SERVER_CONTAINER_NAME=${SERVER_CONTAINER_NAME:-ducktracker-server}
     ports:
       - "${PORT:-8080}:8080"
+    labels:
+      - traefik.http.services.ducktracker.loadbalancer.server.port=8080
     volumes:
       - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads
       - tracker-db:/data
