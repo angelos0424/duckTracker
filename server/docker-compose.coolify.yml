@@ -7,30 +7,12 @@ services:
       - .env
     environment:
       PORT: "${PORT:-8080}"
-      MAX_CONCURRENT_DOWNLOADS: "${MAX_CONCURRENT_DOWNLOADS:-2}"
-      DOWNLOAD_DIR: "${DOWNLOAD_DIR:-/downloads}"
-      DOWNLOAD_FORMAT: "${DOWNLOAD_FORMAT:-bestvideo+bestaudio/best}"
-      DOWNLOAD_QUALITY: "${DOWNLOAD_QUALITY:-}"
-      OUTPUT_TEMPLATE: "${OUTPUT_TEMPLATE:-%(title)s.%(ext)s}"
-      YT_DLP_IMAGE: "${YT_DLP_IMAGE:-ghcr.io/yt-dlp/yt-dlp:latest}"
-      YT_DLP_RUNNER: "${YT_DLP_RUNNER:-docker}"
-      DOCKER_BIN: "${DOCKER_BIN:-docker}"
-      SERVER_CONTAINER_NAME: ducktracker-server
     expose:
-      - "${PORT:-8080}"   # Traefik이 내부 포트로 접근 (호스트 바인딩 불필요)
+      - "${PORT:-8080}"   # Traefik이 내부 포트로 접근
     volumes:
       - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads
       - tracker-db:/data
       - /var/run/docker.sock:/var/run/docker.sock
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.ducktracker.entryPoints=http,https"
-      - "traefik.http.routers.ducktracker.rule=Host(`ducktracker.ddunddun.shop`)"
-      - "traefik.http.routers.ducktracker.middlewares=gzip,redirect-to-https"
-      - "traefik.http.services.ducktracker.loadbalancer.server.port=${PORT:-8080}"
-      - "coolify.managed=true"
-      - "coolify.type=application"
-      - "coolify.environmentName=production"
 
 volumes:
   tracker-db:
