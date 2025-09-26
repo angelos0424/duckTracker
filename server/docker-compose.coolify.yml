@@ -6,13 +6,23 @@ services:
     env_file:
       - .env
     environment:
-      PORT: "${PORT:-8080}"
+      - PORT="${PORT:-8080}"
+      - PORT=${PORT:-8080}
+      - MAX_CONCURRENT_DOWNLOADS=${MAX_CONCURRENT_DOWNLOADS:-2}
+      - DOWNLOAD_DIR=${DOWNLOAD_DIR:-/downloads}
+      - DOWNLOAD_FORMAT=${DOWNLOAD_FORMAT:-bestvideo+bestaudio/best}
+      - DOWNLOAD_QUALITY=${DOWNLOAD_QUALITY:-}
+      - OUTPUT_TEMPLATE=${OUTPUT_TEMPLATE:-%(title)s.%(ext)s}
+      - YT_DLP_IMAGE=${YT_DLP_IMAGE:-ghcr.io/yt-dlp/yt-dlp:latest}
+      - YT_DLP_RUNNER=${YT_DLP_RUNNER:-docker}
+      - DOCKER_BIN=${DOCKER_BIN:-docker}
+      - SERVER_CONTAINER_NAME=${SERVER_CONTAINER_NAME:-ducktracker-server}
+      - COOKIE_FILE_PATH=${COOKIE_FILE_PATH}
     expose:
       - "${PORT:-8080}"   # Traefik이 내부 포트로 접근
     volumes:
-      - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads
+      - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads # cookies.txt 넣어야함.
       - tracker-db:/data
       - /var/run/docker.sock:/var/run/docker.sock
-
 volumes:
   tracker-db:
