@@ -241,7 +241,7 @@ class DownloadManager extends EventEmitter {
       this.config.template,
       '-f',
       this.config.format,
-      '--cookies-from-browser chrome',
+      '--cookies /app/cookies.txt',
       '--newline'
     ];
 
