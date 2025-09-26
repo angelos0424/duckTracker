@@ -32,6 +32,12 @@ function ensureStatements(db) {
           updated_at = CURRENT_TIMESTAMP
       WHERE url_id = @urlId
     `),
+    setFilePath: db.prepare(`
+      UPDATE downloads
+      SET file_path = @filePath,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE url_id = @urlId
+    `),
     setTitle: db.prepare(`
       UPDATE downloads
       SET title = @title,
@@ -40,7 +46,7 @@ function ensureStatements(db) {
     `),
     selectAllIds: db.prepare('SELECT url_id FROM downloads'),
     selectState: db.prepare(`
-      SELECT url_id AS urlId, url, title, status, last_error AS lastError
+      SELECT url_id AS urlId, url, title, status, last_error AS lastError, file_path AS filePath
       FROM downloads
       WHERE url_id = ?
     `)
@@ -65,11 +71,18 @@ function initDatabase(dbPath) {
       status TEXT NOT NULL,
       last_error TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      file_path TEXT DEFAULT ''
     );
 
     CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
   `);
+
+  const columns = instance.prepare('PRAGMA table_info(downloads)').all();
+  const hasFilePath = columns.some((column) => column.name === 'file_path');
+  if (!hasFilePath) {
+    instance.exec('ALTER TABLE downloads ADD COLUMN file_path TEXT DEFAULT "";');
+  }
 
   ensureStatements(instance);
 
@@ -120,6 +133,9 @@ function recordDownloadCompleted(payload) {
     status: 'completed',
     lastError: null
   });
+  if (payload.filePath) {
+    stmts.setFilePath.run({ urlId: payload.urlId, filePath: payload.filePath });
+  }
 }
 
 function recordDownloadTitle(payload) {
@@ -136,6 +152,23 @@ function recordDownloadTitle(payload) {
   stmts.setTitle.run({
     urlId: payload.urlId,
     title: payload.title
+  });
+}
+
+function recordDownloadFilePath(payload) {
+  const db = instance;
+  if (!db) {
+    throw new Error('Database not initialised');
+  }
+
+  if (!payload.filePath) {
+    return;
+  }
+
+  const stmts = ensureStatements(db);
+  stmts.setFilePath.run({
+    urlId: payload.urlId,
+    filePath: payload.filePath
   });
 }
 
@@ -211,6 +244,41 @@ function getDownloadState(urlId) {
   return stmts.selectState.get(urlId) || null;
 }
 
+function deleteDownloads(urlIds) {
+  const db = instance;
+  if (!db) {
+    throw new Error('Database not initialised');
+  }
+
+  if (!Array.isArray(urlIds) || urlIds.length === 0) {
+    return [];
+  }
+
+  const uniqueIds = Array.from(new Set(urlIds.filter((id) => typeof id === 'string' && id.trim())));
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const placeholders = uniqueIds.map(() => '?').join(',');
+  const selectStmt = db.prepare(`
+    SELECT url_id AS urlId, file_path AS filePath
+    FROM downloads
+    WHERE url_id IN (${placeholders})
+  `);
+  const deleteStmt = db.prepare(`
+    DELETE FROM downloads
+    WHERE url_id IN (${placeholders})
+  `);
+
+  const transaction = db.transaction((ids) => {
+    const rows = selectStmt.all(...ids);
+    deleteStmt.run(...ids);
+    return rows;
+  });
+
+  return transaction(uniqueIds);
+}
+
 function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }) {
   const db = instance;
   if (!db) {
@@ -246,7 +314,8 @@ function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }) {
       status,
       last_error AS lastError,
       created_at AS createdAt,
-      updated_at AS updatedAt
+      updated_at AS updatedAt,
+      file_path AS filePath
     FROM downloads
     ${whereClause}
     ORDER BY datetime(created_at) DESC, datetime(updated_at) DESC
@@ -274,5 +343,7 @@ module.exports = {
   ensureUrlIds,
   collectServerOnlyUrlIds,
   getDownloadState,
-  searchDownloads
+  searchDownloads,
+  recordDownloadFilePath,
+  deleteDownloads
 };
