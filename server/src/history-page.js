@@ -657,8 +657,7 @@ function renderHistoryPage({
             }
 
             try {
-              const response = await fetch(\`/history/${encodeURIComponent(urlId)}\`, { method: 'DELETE' });
-              if (!response.ok) {
+                const response = await fetch(\`/history/\${encodeURIComponent(urlId)}\`, { method: 'DELETE' });              if (!response.ok) {
                 const data = await response.json().catch(() => ({ }));
                 alert(data.error || '삭제에 실패했습니다.');
                 return;
@@ -677,7 +676,7 @@ function renderHistoryPage({
             }
             const urlId = button.dataset.urlId;
             if (!urlId) return;
-            window.location.href = \`/history/${encodeURIComponent(urlId)}/file\`;
+            window.location.href = \`/history/\${encodeURIComponent(urlId)}/file\`;
           });
         });
       })();
