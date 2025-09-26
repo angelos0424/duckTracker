@@ -64,6 +64,7 @@ class DownloadManager extends EventEmitter {
 
     const ytArgs = this.buildArgs(request.url);
 
+    console.log('ytArgs', ytArgs);
     let spawnResult;
     try {
       spawnResult = this.spawnDownloadProcess(ytArgs, request);
