@@ -211,6 +211,58 @@ function getDownloadState(urlId) {
   return stmts.selectState.get(urlId) || null;
 }
 
+function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }) {
+  const db = instance;
+  if (!db) {
+    throw new Error('Database not initialised');
+  }
+
+  const safePage = Number.isInteger(page) && page > 0 ? page : 1;
+  const safePageSize = Number.isInteger(pageSize) && pageSize > 0 ? Math.min(pageSize, 100) : 20;
+  const offset = (safePage - 1) * safePageSize;
+
+  const conditions = [];
+  const params = {};
+
+  if (searchTerm && typeof searchTerm === 'string') {
+    params.search = `%${searchTerm.trim()}%`;
+    conditions.push('(url_id LIKE @search OR title LIKE @search)');
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const totalStmt = db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM downloads
+    ${whereClause}
+  `);
+  const total = totalStmt.get(params).total;
+
+  const itemsStmt = db.prepare(`
+    SELECT
+      url_id AS urlId,
+      url,
+      title,
+      status,
+      last_error AS lastError,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM downloads
+    ${whereClause}
+    ORDER BY datetime(created_at) DESC, datetime(updated_at) DESC
+    LIMIT @limit OFFSET @offset
+  `);
+
+  const items = itemsStmt.all({ ...params, limit: safePageSize, offset });
+
+  return {
+    total,
+    page: safePage,
+    pageSize: safePageSize,
+    items
+  };
+}
+
 module.exports = {
   initDatabase,
   recordDownloadQueued,
@@ -221,5 +273,6 @@ module.exports = {
   recordDownloadTitle,
   ensureUrlIds,
   collectServerOnlyUrlIds,
-  getDownloadState
+  getDownloadState,
+  searchDownloads
 };
