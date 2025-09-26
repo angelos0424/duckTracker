@@ -18,8 +18,14 @@ services:
       - SERVER_CONTAINER_NAME=${SERVER_CONTAINER_NAME:-ducktracker-server}
     ports:
       - "${PORT:-8080}:8080"
+#### labels는 coolify 용도
     labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ducktracker.entryPoints=http,https"
+      - "traefik.http.routers.ducktracker.rule=Host(`dsgsggwsckowc44sg4soscko.158.180.77.230.sslip.io`)"
+      - "traefik.http.routers.ducktracker.middlewares=gzip,redirect-to-https"
       - "traefik.http.services.ducktracker.loadbalancer.server.port=${PORT:-8080}"
+
     volumes:
       - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads
       - tracker-db:/data
