@@ -242,9 +242,12 @@ class DownloadManager extends EventEmitter {
     }
 
     if (cookieFilePath) {
-      cookieSetting = `--cookies ${cookieFilePath}`;
+      if (!fs.existsSync(cookieFilePath)) {
+        throw new Error(`Cookie file not found: ${cookieFilePath}`);
+      }
+      cookieSetting = `--cookies '${cookieFilePath}'`;
     } else if (chromePath) {
-      cookieSetting = `--cookies-from-browser ${chromePath}`;
+      cookieSetting = `--cookies-from-browser '${chromePath}'`;
     }
 
     const args = [
