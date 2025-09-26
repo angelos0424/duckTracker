@@ -6,8 +6,10 @@ const { handleUpgrade } = require('./websocket-server');
 const {
   initDatabase,
   ensureUrlIds,
-  collectServerOnlyUrlIds
+  collectServerOnlyUrlIds,
+  searchDownloads
 } = require('./database');
+const { renderHistoryPage } = require('./history-page');
 
 const config = loadConfig();
 initDatabase(config.dbPath);
@@ -21,6 +23,13 @@ function jsonResponse(res, statusCode, payload) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type'
+  });
+  res.end(body);
+}
+
+function htmlResponse(res, statusCode, body) {
+  res.writeHead(statusCode, {
+    'Content-Type': 'text/html; charset=utf-8'
   });
   res.end(body);
 }
@@ -156,10 +165,48 @@ async function handleSaveHistory(req, res) {
   }
 }
 
+function parseInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return fallback;
+}
+
+function handleHistory(req, res, query) {
+  const searchTerm = typeof query.search === 'string' ? query.search.trim() : '';
+  let page = parseInteger(query.page, 1);
+  let pageSize = parseInteger(query.pageSize, 20);
+  pageSize = Math.min(pageSize, 100);
+
+  let result = searchDownloads({ searchTerm, page, pageSize });
+  const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+
+  if (page > totalPages && result.total > 0) {
+    page = totalPages;
+    result = searchDownloads({ searchTerm, page, pageSize });
+  }
+
+  const html = renderHistoryPage({
+    items: result.items,
+    total: result.total,
+    page,
+    pageSize: result.pageSize,
+    searchTerm
+  });
+
+  htmlResponse(res, 200, html);
+}
+
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url || '/', true);
   if (req.method === 'OPTIONS') {
     handleOptions(req, res);
+    return;
+  }
+
+  if (req.method === 'GET' && parsedUrl.pathname === '/history') {
+    handleHistory(req, res, parsedUrl.query || {});
     return;
   }
 
