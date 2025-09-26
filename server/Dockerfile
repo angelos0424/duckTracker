@@ -25,6 +25,8 @@ COPY src ./src
 
 ENV NODE_ENV=production
 
-EXPOSE 8080
+ARG PORT=8080
+ENV PORT=${PORT}
+EXPOSE ${PORT}
 
 CMD ["node", "src/index.js"]
