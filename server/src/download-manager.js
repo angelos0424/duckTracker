@@ -231,21 +231,11 @@ class DownloadManager extends EventEmitter {
   }
 
   buildArgs(url) {
-    let cookieSetting = '';
     const cookieFilePath = this.config.runner.cookieFilePath;
     const chromePath = this.config.runner.chromePath;
 
     if (!cookieFilePath && !chromePath) {
       throw new Error('cookieFilePath or chromePath must be set');
-    }
-
-    if (cookieFilePath) {
-      if (!fs.existsSync(cookieFilePath)) {
-        throw new Error(`Cookie file not found: ${cookieFilePath}`);
-      }
-      cookieSetting = `--cookies ${cookieFilePath}`;
-    } else if (chromePath) {
-      cookieSetting = `--cookies-from-browser ${chromePath}`;
     }
 
     const args = [
@@ -255,10 +245,19 @@ class DownloadManager extends EventEmitter {
       '-o',
       this.config.template,
       '-f',
-      this.config.format,
-      cookieSetting,
-      '--newline'
+      this.config.format
     ];
+
+    if (cookieFilePath) {
+      if (!fs.existsSync(cookieFilePath)) {
+        throw new Error(`Cookie file not found: ${cookieFilePath}`);
+      }
+      args.push('--cookies', cookieFilePath);
+    } else if (chromePath) {
+      args.push('--cookies-from-browser', chromePath);
+    }
+
+    args.push('--newline');
 
     if (this.config.qualityLimit) {
       args.push('--format-sort');

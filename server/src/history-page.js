@@ -359,10 +359,12 @@ function renderHistoryPage({
         justify-content: center;
         z-index: 1000;
         opacity: 0;
+        pointer-events: none;
         transition: opacity 0.2s ease;
       }
       .dialog-backdrop.visible {
         opacity: 1;
+        pointer-events: auto;
       }
       .dialog {
         background: #fff;
