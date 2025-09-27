@@ -327,6 +327,15 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = React.memo(({
     return downloads.filter(download => download.status === filterStatus);
   }, [downloads, filterStatus]);
 
+  const extractFileName = React.useCallback((filePath?: string, fallbackTitle?: string | null) => {
+    if (!filePath) {
+      return fallbackTitle || undefined;
+    }
+    const segments = filePath.split(/[/\\]/);
+    const name = segments.pop();
+    return name && name.length > 0 ? name : fallbackTitle || undefined;
+  }, []);
+
   const columns: GridColDef<DownloadRecord>[] = React.useMemo(() => [
     {
       field: 'id',
@@ -345,22 +354,42 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = React.memo(({
       }
     },
     { field: 'title', headerName: 'Title', flex: 1, minWidth: 300,
-      renderCell: (params: GridRenderCellParams<DownloadRecord, string>) => (
-        <CellBox>
-          <Tooltip title={params.value}>
-            <Typography
-              variant="body2"
-              sx={{
-                fontWeight: 'medium',
+      renderCell: (params: GridRenderCellParams<DownloadRecord, string>) => {
+        const fileName = params.row.fileName || extractFileName(params.row.filePath, params.value);
+        const originalTitle = params.value || 'Untitled';
+        const showOriginalTitle = fileName && originalTitle && fileName !== originalTitle;
+        return (
+          <CellBox>
+            <Tooltip title={fileName || originalTitle}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 'medium',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
                 width: '100%'
               }}
             >
-              {params.value || 'Untitled'}
+              {fileName || originalTitle}
             </Typography>
           </Tooltip>
+          {showOriginalTitle && (
+            <Tooltip title={originalTitle}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  width: '100%'
+                }}
+              >
+                {originalTitle}
+              </Typography>
+            </Tooltip>
+          )}
           <Tooltip title={params.row.url}>
             <Typography
               variant="caption"
@@ -384,12 +413,13 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = React.memo(({
                   textAlign: 'left'
                 }}
               >
-                {params.row.url}
-              </Link>
-            </Typography>
-          </Tooltip>
-        </CellBox>
-      )
+              {params.row.url}
+            </Link>
+          </Typography>
+        </Tooltip>
+          </CellBox>
+        );
+      }
     },
     { field: 'status', headerName: 'Status', width: 100,
       renderCell: (params: GridRenderCellParams<DownloadRecord, DownloadRecord['status']>) => {
@@ -475,7 +505,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = React.memo(({
         />
       )
     },
-  ], [onOpenFile, onRetry, handleSingleDelete, ipc]);
+  ], [onOpenFile, onRetry, handleSingleDelete, ipc, extractFileName]);
 
   return (
     <Box sx={{ p: 2 }}>

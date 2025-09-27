@@ -8,6 +8,7 @@ export interface DownloadRecord {
   status: 'pending' | 'downloading' | 'completed' | 'failed' | 'cancelled' | 'queued' | 'check';
   progress: number;
   filePath?: string;
+  fileName?: string;
   fileSize?: number;
   errorMessage?: string;
   startTime: Date;
@@ -109,6 +110,7 @@ export interface ResponseMessage {
   error?: string;
   title?: string;
   percent?: number;
+  fileName?: string;
 }
 
 export interface DownloadEventData {
@@ -118,6 +120,7 @@ export interface DownloadEventData {
   status: 'downloading' | 'completed' | 'failed' | 'stopped';
   progress: number;
   filePath?: string;
+  fileName?: string;
   error?: string;
   startTime?: Date;
   endTime?: Date;
@@ -132,6 +135,7 @@ export interface DownloadEvent {
   status: 'downloading' | 'completed' | 'failed' | 'stopped';
   progress: number;
   filePath?: string;
+  fileName?: string;
   error?: string;
   startTime?: Date;
   endTime?: Date;

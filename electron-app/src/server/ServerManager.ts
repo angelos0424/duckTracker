@@ -18,20 +18,27 @@ interface ExistUrls {
   url_id: string;
 }
 
+const EXTENSION_OUTPUT_TEMPLATE = process.env.YTDLP_EXTENSION_TEMPLATE || '%(id)s.%(ext)s';
+const HISTORY_OUTPUT_TEMPLATE = process.env.YTDLP_HISTORY_TEMPLATE || '%(title)s.%(ext)s';
+
+type DownloadState = {
+  status: string;
+  url: string;
+  urlId: string;
+  error?: string | null;
+  percent?: number | null;
+  title?: string | null;
+  fileName?: string | null;
+  filePath?: string | null;
+};
+
 export class ServerManager extends EventEmitter {
   private httpServer: Server | null = null;
   private wsServer: WebSocketServer | null = null;
   private app: express.Application;
   private ytDlpWrap: YTDlpWrap;
   private activeDownloads = new Map<string, AbortController>();
-  private downloadsState: Map<string, {
-    status: string;
-    url: string;
-    urlId: string;
-    error?: string;
-    percent?: number;
-    title?: string | undefined
-  }> = new Map();
+  private downloadsState: Map<string, DownloadState> = new Map();
   private config: ServerConfig | null = null;
   private errorHandler: ErrorHandler;
 
@@ -47,6 +54,56 @@ export class ServerManager extends EventEmitter {
     this.db = databaseManager.getDatabase();
     this.setupExpressApp();
     this.setupEventListeners();
+  }
+
+  private mergeDownloadState(urlId: string, updates: Partial<DownloadState>): void {
+    const current = this.downloadsState.get(urlId);
+    const next: DownloadState = {
+      status: updates.status ?? current?.status ?? 'started',
+      url: updates.url ?? current?.url ?? '',
+      urlId,
+    };
+
+    const mutableNext = next as DownloadState & { [key: string]: any };
+
+    const applyUpdate = <K extends keyof DownloadState>(key: K) => {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        const value = updates[key];
+        if (value === undefined || value === null) {
+          delete mutableNext[key as string];
+        } else {
+          mutableNext[key as string] = value;
+        }
+      } else if (current && current[key] !== undefined) {
+        mutableNext[key as string] = current[key];
+      }
+    };
+
+    applyUpdate('error');
+    applyUpdate('percent');
+    applyUpdate('title');
+    applyUpdate('fileName');
+    applyUpdate('filePath');
+
+    this.downloadsState.set(urlId, next);
+  }
+
+  private resolveFilePath(rawPath: string, outputDir: string): string {
+    const trimmed = rawPath.trim().replace(/^['"]+|['"]+$/g, '');
+    if (!trimmed) {
+      return '';
+    }
+    const normalized = path.normalize(trimmed);
+    if (path.isAbsolute(normalized)) {
+      return normalized;
+    }
+    return path.join(outputDir, normalized);
+  }
+
+  private updateDownloadFileInfo(urlId: string, filePath: string): string {
+    const fileName = path.basename(filePath);
+    this.mergeDownloadState(urlId, { filePath, fileName });
+    return fileName;
   }
 
   public setYtDlpWrap(ytDlpWrap: YTDlpWrap): void {
@@ -78,14 +135,22 @@ export class ServerManager extends EventEmitter {
           return res.status(400).json({ error: 'url and urlId are required' });
         }
 
-        this.downloadsState.set(urlId, {
+        this.mergeDownloadState(urlId, {
           status: 'started',
           url,
-          urlId,
-          percent: 0
+          percent: 0,
+          title: null,
+          error: null,
+          fileName: null,
+          filePath: null,
         });
 
-        const data = { url, urlId, options: Array.isArray(options) ? options : [] };
+        const data = {
+          url,
+          urlId,
+          options: Array.isArray(options) ? options : [],
+          outputTemplate: EXTENSION_OUTPUT_TEMPLATE,
+        };
         const started = await this.startDownload(data);
 
         if (started) {
@@ -108,8 +173,11 @@ export class ServerManager extends EventEmitter {
         }
         const stopped = this.stopDownload(urlId);
         if (stopped) {
-          const prev = this.downloadsState.get(urlId) || {url: url || '', urlId};
-          this.downloadsState.set(urlId, {...prev, status: 'stop', error: 'Download stopped'});
+          const updates: Partial<DownloadState> = { status: 'stop', error: 'Download stopped' };
+          if (url) {
+            updates.url = url;
+          }
+          this.mergeDownloadState(urlId, updates);
         }
         return res.json({success: stopped});
       } catch (error) {
@@ -181,7 +249,7 @@ export class ServerManager extends EventEmitter {
   }
 
   private async startDownload(
-    data: { url: string; urlId: string; title?: string | ''; options?: string[] }
+    data: { url: string; urlId: string; title?: string | ''; options?: string[]; outputTemplate?: string }
   ): Promise<boolean> {
     if (!this.config) {
       this.emit('download-failed', { urlId: data.urlId, url: data.url, title: data.title, status: 'failed', error: 'Server not configured' });
@@ -215,8 +283,26 @@ export class ServerManager extends EventEmitter {
     if (downloadRecord) {
       if (downloadRecord.status === 'completed') {
         this.activeDownloads.delete(data.urlId);
-        this.downloadsState.set(data.urlId, { status: 'completed', url: downloadRecord.url, urlId: downloadRecord.urlId, title: downloadRecord.title, percent: 100 });
-        this.emit('download-completed', { urlId: data.urlId, url: downloadRecord.url, title: downloadRecord.title, status: 'completed', progress: 100, filePath: downloadRecord.filePath });
+        const existingFilePath = downloadRecord.filePath ?? null;
+        const existingFileName = downloadRecord.fileName || (existingFilePath ? path.basename(existingFilePath) : undefined);
+        this.mergeDownloadState(data.urlId, {
+          status: 'completed',
+          url: downloadRecord.url,
+          percent: 100,
+          title: downloadRecord.title,
+          error: null,
+          filePath: existingFilePath,
+          fileName: existingFileName ?? null,
+        });
+        this.emit('download-completed', {
+          urlId: data.urlId,
+          url: downloadRecord.url,
+          title: downloadRecord.title,
+          status: 'completed',
+          progress: 100,
+          filePath: existingFilePath ?? undefined,
+          fileName: existingFileName,
+        });
         this.broadcastWsMessage('download-completed', { urlId: data.urlId });
         return false;
       }
@@ -240,10 +326,19 @@ export class ServerManager extends EventEmitter {
       return false; // Return false to indicate it didn't actually start
     }
 
-    this.downloadsState.set(data.urlId, { status: 'started', url: data.url, urlId: data.urlId, percent: 0, title: currentTitle });
+    this.mergeDownloadState(data.urlId, {
+      status: 'started',
+      url: data.url,
+      percent: 0,
+      title: currentTitle,
+      error: null,
+      fileName: null,
+      filePath: null,
+    });
     this.emit('download-started', { urlId: data.urlId, url: data.url, title: currentTitle, status: 'downloading' });
 
-    const downloadOptions = [data.url, '-f', config.format, '-P', config.outputPath, '-o', config.outputTemplate, ...(data.options || [])];
+    const outputTemplate = data.outputTemplate ?? config.outputTemplate;
+    const downloadOptions = [data.url, '-f', config.format, '-P', config.outputPath, '-o', outputTemplate, ...(data.options || [])];
     let currentFilePath = '';
 
     try {
@@ -266,9 +361,27 @@ export class ServerManager extends EventEmitter {
             if (eventData.endsWith('has already been downloaded')) {
               console.log(eventData);
               const existingFile = eventData.split('has already been downloaded')[0]?.trim() || '';
+              const resolvedPath = this.resolveFilePath(existingFile, config.outputPath);
+              const fileName = resolvedPath ? this.updateDownloadFileInfo(data.urlId, resolvedPath) : undefined;
               this.activeDownloads.delete(data.urlId);
-              this.downloadsState.set(data.urlId, { status: 'completed', url: data.url, urlId: data.urlId, title: currentTitle, percent: 100 });
-              this.emit('download-completed', { urlId: data.urlId, url: data.url, title: currentTitle, status: 'completed', progress: 100, filePath: existingFile });
+              this.mergeDownloadState(data.urlId, {
+                status: 'completed',
+                url: data.url,
+                percent: 100,
+                title: currentTitle,
+                error: null,
+                filePath: resolvedPath ?? null,
+                fileName: fileName ?? null,
+              });
+              this.emit('download-completed', {
+                urlId: data.urlId,
+                url: data.url,
+                title: currentTitle,
+                status: 'completed',
+                progress: 100,
+                filePath: resolvedPath ?? undefined,
+                fileName,
+              });
               this.processDownloadQueue();
               return;
             }
@@ -276,21 +389,24 @@ export class ServerManager extends EventEmitter {
             const destMarker = 'Destination: ';
             const destIndex = eventData.indexOf(destMarker);
             if (destIndex !== -1) {
-              currentFilePath = eventData.substring(destIndex + destMarker.length).trim();
-
-              console.log('currentFilePath set from Destination:', currentFilePath);
-              console.log(eventData)
+              const destination = eventData.substring(destIndex + destMarker.length);
+              const resolvedPath = this.resolveFilePath(destination, config.outputPath);
+              if (resolvedPath) {
+                currentFilePath = resolvedPath;
+                const fileName = this.updateDownloadFileInfo(data.urlId, resolvedPath);
+                console.log('currentFilePath set from Destination:', resolvedPath);
+                console.log(eventData);
+              }
             }
 
             const percentMatch = eventData.match(/(\d+(?:\.\d+)?)%/);
             if (percentMatch && percentMatch[1]) {
               const percent = parseFloat(percentMatch[1]);
-              this.downloadsState.set(data.urlId, {
+              this.mergeDownloadState(data.urlId, {
                 status: 'progress',
                 url: data.url,
-                urlId: data.urlId,
                 title: currentTitle,
-                percent: percent
+                percent,
               });
               this.emit('download-progress', {
                 urlId: data.urlId,
@@ -301,13 +417,15 @@ export class ServerManager extends EventEmitter {
               });
             }
           } else if (eventType === 'Merger') {
-            const mergerMarker = 'into ';
-            const mergerIndex = eventData.indexOf(mergerMarker);
-            if (mergerIndex !== -1) {
+            const mergerMatch = eventData.match(/into\s+['"]?(.+?)['"]?$/);
+            if (mergerMatch && mergerMatch[1]) {
+              const resolvedPath = this.resolveFilePath(mergerMatch[1], config.outputPath);
+              if (resolvedPath) {
                 console.log('Merger event:', eventData);
-                const filePath = eventData.substring(mergerIndex + mergerMarker.length).replace(/"/g, '').trim();
-                console.log('Merged file path:', filePath);
-                currentFilePath = filePath;
+                console.log('Merged file path:', resolvedPath);
+                currentFilePath = resolvedPath;
+                this.updateDownloadFileInfo(data.urlId, resolvedPath);
+              }
             }
           }
         })
@@ -322,7 +440,12 @@ export class ServerManager extends EventEmitter {
           console.error('Download process error:', error);
           this.activeDownloads.delete(data.urlId);
           const errorMessage = error.message || 'Failed during download process.';
-          this.downloadsState.set(data.urlId, { status: 'error', url: data.url, urlId: data.urlId, title: currentTitle, error: errorMessage });
+          this.mergeDownloadState(data.urlId, {
+            status: 'error',
+            url: data.url,
+            title: currentTitle,
+            error: errorMessage,
+          });
           this.emit('download-failed', { urlId: data.urlId, url: data.url, title: currentTitle, status: 'failed', error: errorMessage });
           this.processDownloadQueue();
         })
@@ -340,7 +463,8 @@ export class ServerManager extends EventEmitter {
                   '--get-filename',
                   '--skip-download'
                 ]);
-                currentFilePath = path.join(config.outputPath, filename.trim());
+                const resolved = this.resolveFilePath(filename, config.outputPath);
+                currentFilePath = resolved || path.join(config.outputPath, filename.trim().replace(/^['"]+|['"]+$/g, ''));
               } catch (e) {
                 console.error('Could not determine filename after download:', e);
                 // Fallback if getting filename fails
@@ -348,12 +472,38 @@ export class ServerManager extends EventEmitter {
               }
             }
 
-            this.downloadsState.set(data.urlId, { status: 'completed', url: data.url, urlId: data.urlId, title: currentTitle, percent: 100 });
+            const fileName = currentFilePath ? this.updateDownloadFileInfo(data.urlId, currentFilePath) : undefined;
 
-            const fileStat = fs.statSync(currentFilePath);
-            const fileSize = fileStat.size;
+            this.mergeDownloadState(data.urlId, {
+              status: 'completed',
+              url: data.url,
+              percent: 100,
+              title: currentTitle,
+              error: null,
+              filePath: currentFilePath ?? null,
+              fileName: fileName ?? null,
+            });
 
-            this.emit('download-completed', { urlId: data.urlId, url: data.url, title: currentTitle, status: 'completed', progress: 100, filePath: currentFilePath, fileSize });
+            let fileSize: number | undefined;
+            if (currentFilePath) {
+              try {
+                const fileStat = fs.statSync(currentFilePath);
+                fileSize = fileStat.size;
+              } catch (statError) {
+                console.error('Failed to read completed file stats:', statError);
+              }
+            }
+
+            this.emit('download-completed', {
+              urlId: data.urlId,
+              url: data.url,
+              title: currentTitle,
+              status: 'completed',
+              progress: 100,
+              filePath: currentFilePath ?? undefined,
+              fileSize,
+              fileName,
+            });
             this.broadcastWsMessage('download-completed', { urlId: data.urlId });
           }
           this.processDownloadQueue();
@@ -535,10 +685,10 @@ export class ServerManager extends EventEmitter {
       controller.abort();
       this.activeDownloads.delete(urlId);
       const currentState = this.downloadsState.get(urlId);
-      this.downloadsState.set(urlId, { 
-        ...(currentState || { url: '', urlId }),
-        status: 'stop', 
-        error: 'Download stopped'
+      this.mergeDownloadState(urlId, {
+        status: 'stop',
+        error: 'Download stopped',
+        url: currentState?.url ?? '',
       });
       this.emit('download-stopped', { urlId, url: currentState?.url || '', status: 'stopped', error: 'Download stopped' });
       return true;
@@ -561,7 +711,7 @@ export class ServerManager extends EventEmitter {
     if (!this.config) {
       throw new Error('Server not configured. Cannot start download.');
     }
-    const data = { url, urlId, title, options: [] };
+    const data = { url, urlId, title, options: [], outputTemplate: HISTORY_OUTPUT_TEMPLATE };
     await this.startDownload(data);
   }
 

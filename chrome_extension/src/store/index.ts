@@ -25,7 +25,7 @@ type HistoryActions = {
   removeFromHistory: (urlId: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   restoreHistory: (historyData: string[]) => Promise<void>;
-  setSessionItem: (urlId: string, title: string, status: ServerMessageStatus, percent?: number, error?: string) => void;
+  setSessionItem: (urlId: string, title: string, status: ServerMessageStatus, percent?: number, error?: string, fileName?: string) => void;
 };
 
 const useHistoryStore = create<HistoryState & HistoryActions>((set, get) => ({
@@ -92,7 +92,7 @@ const useHistoryStore = create<HistoryState & HistoryActions>((set, get) => ({
     set({ history: historyData });
   },
 
-  setSessionItem: (urlId, title, status, percent, error) => {
+  setSessionItem: (urlId, title, status, percent, error, fileName) => {
     set((state) => ({
       sessionHistory: {
         ...state.sessionHistory,
@@ -102,6 +102,7 @@ const useHistoryStore = create<HistoryState & HistoryActions>((set, get) => ({
           status,
           percent,
           error,
+          fileName,
         },
       },
     }));

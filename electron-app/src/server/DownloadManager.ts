@@ -1,3 +1,4 @@
+import path from 'path';
 import {DatabaseManager} from './DatabaseManager';
 import {DownloadRecord} from '../shared/types';
 import {EventEmitter} from 'events';
@@ -12,7 +13,16 @@ export interface DownloadProcess {
   startTime: Date;
   title: string | undefined;
   filePath?: string;
+  fileName?: string;
   error: string | undefined;
+}
+
+interface CompleteDownloadParams {
+  urlId: string;
+  filePath?: string;
+  title?: string;
+  fileSize?: number;
+  fileName?: string;
 }
 
 export interface DownloadHistoryQuery {
@@ -232,7 +242,7 @@ export class DownloadManager extends EventEmitter {
   /**
    * Mark download as completed
    */
-  async completeDownload(urlId: string, filePath?: string, title?: string, fileSize?: number): Promise<void> {
+  async completeDownload({ urlId, filePath, title, fileSize, fileName }: CompleteDownloadParams): Promise<void> {
     const db = this.dbManager.getDatabase();
     const now = new Date().toISOString();
 
@@ -249,12 +259,14 @@ export class DownloadManager extends EventEmitter {
             AND status IN ('pending', 'downloading')
       `);
 
-      const result = stmt.run(filePath||null, now, title || null, fileSize, urlId);
+      const result = stmt.run(filePath || null, now, title || null, fileSize, urlId);
 
       if (result.changes === 0) {
         console.warn(`No active download found for urlId: ${urlId}`);
         return;
       }
+
+      const resolvedFileName = fileName || (filePath ? path.basename(filePath) : undefined);
 
       // Update active download
       const activeDownload = this.activeDownloads.get(urlId);
@@ -268,11 +280,19 @@ export class DownloadManager extends EventEmitter {
         if (filePath) {
           activeDownload.filePath = filePath;
         }
+        if (resolvedFileName) {
+          activeDownload.fileName = resolvedFileName;
+        }
       }
 
       // Get updated record and emit event
       const updatedRecord = this.getDownloadByUrlId(urlId);
       if (updatedRecord) {
+        if (resolvedFileName) {
+          updatedRecord.fileName = resolvedFileName;
+        } else if (updatedRecord.filePath) {
+          updatedRecord.fileName = path.basename(updatedRecord.filePath);
+        }
         this.emit('download-updated', updatedRecord);
         this.emit('download-finished', { ...updatedRecord, status: 'completed' });
       }
@@ -461,7 +481,8 @@ export class DownloadManager extends EventEmitter {
         FROM downloads
         WHERE id = ?
       `);
-      return stmt.get(id) as DownloadRecord || null;
+      const record = stmt.get(id) as DownloadRecord | undefined;
+      return this.withFileName(record);
     } catch (error) {
       console.error('Failed to get download by ID:', error);
       return null;
@@ -492,7 +513,8 @@ export class DownloadManager extends EventEmitter {
         FROM downloads
         WHERE url_id = ? ORDER BY created_at DESC LIMIT 1
       `);
-      return stmt.get(urlId) as DownloadRecord || null;
+      const record = stmt.get(urlId) as DownloadRecord | undefined;
+      return this.withFileName(record);
     } catch (error) {
       console.error('Failed to get download by URL ID:', error);
       return null;
@@ -732,7 +754,10 @@ export class DownloadManager extends EventEmitter {
 
     try {
       const stmt = db.prepare(sql);
-      return stmt.all(...params) as DownloadRecord[];
+      const records = stmt.all(...params) as DownloadRecord[];
+      return records
+        .map(record => this.withFileName(record))
+        .filter((record): record is DownloadRecord => record !== null);
     } catch (error) {
       console.error(`Failed to get downloads by status ${status}:`, error);
       return [];
@@ -763,7 +788,7 @@ export class DownloadManager extends EventEmitter {
         db.prepare(
           `UPDATE downloads SET status = 'pending' WHERE id = ?`
         ).run(queuedDownload.id);
-        return queuedDownload;
+        return this.withFileName(queuedDownload);
       }
       return null;
     });
@@ -779,5 +804,16 @@ export class DownloadManager extends EventEmitter {
       console.error('Failed to pop next queued download:', error);
       return null;
     }
+  }
+  private withFileName(record: DownloadRecord | undefined | null): DownloadRecord | null {
+    if (!record) {
+      return null;
+    }
+
+    if (record.filePath && !record.fileName) {
+      record.fileName = path.basename(record.filePath);
+    }
+
+    return record;
   }
 }

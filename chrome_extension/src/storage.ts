@@ -45,16 +45,18 @@ type sessionHistory = {
     status: ServerMessageStatus;
     error?: string;
     percent?: number;
+    fileName?: string;
   };
 }
 
-export const setSessionItem = (urlId: string, title: string, status?: ServerMessageStatus) => {
+export const setSessionItem = (urlId: string, title: string, status?: ServerMessageStatus, fileName?: string) => {
   const sessionObj: sessionHistory = {};
   const date = new Date().toISOString();
   sessionObj[urlId] = {
     title,
     date,
     status: status || 'started',
+    fileName,
   };
 
   chrome.storage.session.set(sessionObj)

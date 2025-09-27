@@ -1,16 +1,9 @@
 
 import { apiService } from './services/ApiService';
 import useHistoryStore from './store/index';
-import { ServerMessageStatus } from './types';
+import { DownloadInitiationResponse, DownloadRequestPayload, DownloadStatusPayload, ServerMessageStatus } from './types';
 
-type ServerMessage = {
-  status: ServerMessageStatus;
-  url: string;
-  urlId: string;
-  error?: string;
-  percent?: number;
-  title: string;
-}
+type ServerMessage = DownloadStatusPayload & { title: string };
 
 const downloadInitiatorTabs = new Map<string, number>();
 
@@ -50,12 +43,12 @@ const sendMsgToAllYouTubeTabs = (action: string, data: any) => {
 };
 
 const checkDownloads = async () => {
-  const downloads = await apiService.get('downloads');
+  const downloads = await apiService.get<DownloadStatusPayload[]>('downloads');
   for (const download of downloads) {
-    const data: ServerMessage = download;
+    const data: ServerMessage = { ...download, title: download.title ?? '' };
     const tabId = downloadInitiatorTabs.get(data.urlId);
 
-    useHistoryStore.getState().setSessionItem(data.urlId, data.title, data.status, data.percent, data.error);
+    useHistoryStore.getState().setSessionItem(data.urlId, data.title ?? '', data.status as ServerMessageStatus, data.percent, data.error, data.fileName);
 
     const isDownloadFinished = data.status === 'completed' || data.status === 'error' || data.status === 'stop';
 
@@ -65,7 +58,7 @@ const checkDownloads = async () => {
 
     if (tabId) {
       if (data.status === 'completed') {
-        useHistoryStore.getState().addToHistory(data.urlId, data.title).then(() => {
+        useHistoryStore.getState().addToHistory(data.urlId, data.fileName ?? data.title ?? '').then(() => {
           console.log('completed', data);
           sendMsg(tabId, 'download_status', data);
         });
@@ -113,7 +106,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Todo save title?
     addToHistory(urlId, '').then((res) => {
       if (res) {
-        apiService.post('save_history', message.text);
+        apiService.post<typeof message.text, { success: boolean }>('save_history', message.text);
       }
       sendResponse({success: res})
     });
@@ -131,7 +124,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.action === 'download') {
     if (tabId && message.text.urlId) {
       downloadInitiatorTabs.set(message.text.urlId, tabId);
-      apiService.post('download', message.text).then(res => {
+      const requestPayload: DownloadRequestPayload = {
+        url: message.text.url,
+        urlId: message.text.urlId,
+        options: message.text.options,
+      };
+      apiService.post<DownloadRequestPayload, DownloadInitiationResponse>('download', requestPayload).then(res => {
         sendMsg(tabId, 'download_status', res.data);
       });
     } else {
@@ -139,7 +137,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true;
   } else if (message.action === 'stop_download') {
-    apiService.post('stop_download', message.text);
+    apiService.post<typeof message.text, { success: boolean }>('stop_download', message.text);
     return true;
   } else if (message.action === 'toggle_toolbar_visibility') {
     sendMsgToAllYouTubeTabs(message.action, message.text);

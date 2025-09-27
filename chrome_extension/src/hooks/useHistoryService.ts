@@ -12,6 +12,7 @@ export type BackgroundMessage = {
     error?: string;
     percent?: number;
     title?: string;
+    fileName?: string;
   }
 }
 

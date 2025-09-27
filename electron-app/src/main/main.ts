@@ -20,6 +20,7 @@ import {getUniqueIdFromParsedUrl, parseYouTubeUrl} from '../shared/utils/urlPars
 
 // Helper to convert server record to shared record for notifications
 const toSharedDownloadRecord = (record: DownloadRecord): DownloadRecord => {
+  const inferredFileName = record.fileName ?? (record.filePath ? path.basename(record.filePath) : undefined);
   return {
     id: record.id,
     url: record.url,
@@ -35,6 +36,7 @@ const toSharedDownloadRecord = (record: DownloadRecord): DownloadRecord => {
     startTime: record.startTime ? new Date(record.startTime) : new Date(), // Should always exist
     endTime: record.endTime ? new Date(record.endTime) : new Date(),
     createdAt: record.createdAt ? new Date(record.createdAt) : new Date(),
+    ...(inferredFileName ? { fileName: inferredFileName } : {}),
   };
 };
 
@@ -255,7 +257,27 @@ class ElectronApp {
     this.serverManager.on('download-completed', async (data: DownloadEventData) => {
       console.log('ServerManager: Download completed event received:', data);
       try {
-        await this.downloadManager.completeDownload(data.urlId, data.filePath, data.title, data.fileSize);
+        const completionPayload: { urlId: string; filePath?: string; title?: string; fileSize?: number; fileName?: string } = {
+          urlId: data.urlId,
+        };
+
+        if (data.title !== undefined) {
+          completionPayload.title = data.title;
+        }
+
+        if (data.fileSize !== undefined) {
+          completionPayload.fileSize = data.fileSize;
+        }
+
+        if (data.filePath !== undefined) {
+          completionPayload.filePath = data.filePath;
+        }
+
+        if (data.fileName !== undefined) {
+          completionPayload.fileName = data.fileName;
+        }
+
+        await this.downloadManager.completeDownload(completionPayload);
       } catch (error) {
         console.error('Failed to complete download in database:', error);
       }
