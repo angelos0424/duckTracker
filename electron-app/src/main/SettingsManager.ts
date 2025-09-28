@@ -20,7 +20,6 @@ export class SettingsManager {
       outputTemplate: '%(title)s [%(id)s].%(ext)s',
       maxConcurrentDownloads: 3,
       httpPort: 9999,
-      wsPort: 9999,
       minimizeToTray: true,
       showNotifications: true
     };
@@ -119,18 +118,11 @@ export class SettingsManager {
       errors.push('Max concurrent downloads must be an integer between 1 and 10');
     }
 
-    // Validate httpPort
+    // Validate server port
     if (!Number.isInteger(settings.httpPort) ||
       settings.httpPort < 1024 ||
       settings.httpPort > 65535) {
-      errors.push('HTTP port must be an integer between 1024 and 65535');
-    }
-
-    // Validate wsPort
-    if (!Number.isInteger(settings.wsPort) ||
-      settings.wsPort < 1024 ||
-      settings.wsPort > 65535) {
-      errors.push('WebSocket port must be an integer between 1024 and 65535');
+      errors.push('Server port must be an integer between 1024 and 65535');
     }
 
     if (typeof settings.minimizeToTray !== 'boolean') {

@@ -33,7 +33,7 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, onReset, ytDlpVer
 
   const handleInputChange = (field: keyof AppSettings, value: any) => {
     // Ensure numeric fields are stored as numbers
-    const numericFields: (keyof AppSettings)[] = ['maxConcurrentDownloads', 'httpPort', 'wsPort'];
+    const numericFields: (keyof AppSettings)[] = ['maxConcurrentDownloads', 'httpPort'];
     const finalValue = numericFields.includes(field) ? Number(value) : value;
     setFormSettings(prev => ({ ...prev, [field]: finalValue }));
   };
@@ -168,6 +168,23 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSave, onReset, ytDlpVer
             label={t('settings.sections.downloads.output_template')}
             value={formSettings.outputTemplate}
             onChange={(e) => handleInputChange('outputTemplate', e.target.value)}
+          />
+        </Grid>
+
+        {/* Server Settings */}
+        <Grid className="settings-item">
+          <Typography variant="h6" gutterBottom>{t('settings.sections.server.title')}</Typography>
+        </Grid>
+        <Grid className="settings-item md-6">
+          <TextField
+            fullWidth
+            margin="normal"
+            type="number"
+            label={t('settings.sections.server.port')}
+            value={formSettings.httpPort}
+            onChange={(e) => handleInputChange('httpPort', e.target.value)}
+            helperText={t('settings.sections.server.port_help', 'Port used for the server and live updates (1024-65535)')}
+            inputProps={{ min: 1024, max: 65535 }}
           />
         </Grid>
 

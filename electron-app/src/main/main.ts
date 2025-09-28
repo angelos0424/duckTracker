@@ -171,7 +171,6 @@ class ElectronApp {
         }
         const config: ServerConfig = {
             port: this._appSettings.httpPort,
-            wsPort: this._appSettings.wsPort,
             corsOrigins: ['chrome-extension://*', 'moz-extension://*', 'http://localhost:*'],
             maxConcurrentDownloads: this._appSettings.maxConcurrentDownloads,
             outputPath: this._appSettings.downloadPath,
@@ -187,8 +186,7 @@ class ElectronApp {
             if (errorMessage.includes('Ports are not available')) {
                 appError = this.errorHandler.getErrorTemplate('PORT_CONFLICT', {
                     ports: errorMessage,
-                    httpPort: config.port,
-                    wsPort: config.wsPort
+                    httpPort: config.port
                 });
             } else {
                 appError = this.errorHandler.createError(

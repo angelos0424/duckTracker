@@ -241,11 +241,11 @@ export class ErrorHandler {
         code: 'PORT_CONFLICT',
         category: ErrorCategory.SYSTEM,
         severity: ErrorSeverity.HIGH,
-        message: 'Server ports are already in use',
-        userMessage: 'The download server cannot start because the required ports are already being used by another application.',
+        message: 'Server port is already in use',
+        userMessage: 'The download server cannot start because the configured port is already being used by another application.',
         actionableSteps: [
-          'Close other applications that might be using these ports',
-          'Try different port numbers in Settings',
+          'Close other applications that might be using this port',
+          'Try a different port number in Settings',
           'Restart your computer to free up ports'
         ],
         recoverable: true

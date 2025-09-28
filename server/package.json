@@ -2,10 +2,12 @@
   "name": "ducktracker-server",
   "version": "1.0.0",
   "description": "Lightweight download coordination server for DuckTracker",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node --transpile-only src/index.ts"
   },
   "keywords": ["youtube", "downloader", "ducktracker"],
   "author": "",
@@ -13,5 +15,10 @@
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^9.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
   }
 }
