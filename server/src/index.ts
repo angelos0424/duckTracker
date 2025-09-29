@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { loadConfig, ServerConfig } from './config';
 import { DownloadManager, DownloadSnapshot } from './download-manager';
 import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server';
+import { getHistoryPageCss } from './history-page-assets';
 import {
     initDatabase,
     ensureUrlIds,
@@ -496,6 +497,16 @@ const server = http.createServer((req, res) => {
     const parsedUrl = url.parse(req.url || '/', true);
     if (req.method === 'OPTIONS') {
         handleOptions(req, res);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/history-page.css') {
+        const css = getHistoryPageCss();
+        res.writeHead(200, {
+            'Content-Type': 'text/css; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+        });
+        res.end(css);
         return;
     }
 

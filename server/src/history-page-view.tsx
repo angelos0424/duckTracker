@@ -2,736 +2,366 @@ import React from 'react';
 import { URLSearchParams } from 'node:url';
 import type { DownloadRecordRow } from './database';
 
-const GLOBAL_STYLES = String.raw`
-  :root {
-    color-scheme: light dark;
-    font-family: "Inter", "Noto Sans KR", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    line-height: 1.5;
-  }
-  body {
-    margin: 0;
-    padding: 32px 24px 48px;
-    background: #f7f7f8;
-    color: #1f2328;
-  }
-  h1 {
-    margin-top: 0;
-    margin-bottom: 16px;
-    font-size: 1.75rem;
-  }
-  .card {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-  }
-  .toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: space-between;
-    align-items: stretch;
-    margin-bottom: 20px;
-  }
-  .search-form {
-    display: flex;
-    flex: 1;
-    gap: 12px;
-    min-width: 260px;
-  }
-  .search-form input[type="text"] {
-    flex: 1;
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid #d0d7de;
-    font-size: 1rem;
-  }
-  .toolbar-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-  button {
-    padding: 10px 18px;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-    border: none;
-  }
-  button.primary {
-    background: #2563eb;
-    color: white;
-  }
-  button.primary:hover {
-    background: #1d4ed8;
-  }
-  button.secondary {
-    background: white;
-    color: #1f2937;
-    border: 1px solid #cbd5f5;
-  }
-  button.secondary:hover {
-    background: #eff6ff;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #fdfdfd;
-  }
-  thead {
-    background: #eff1f5;
-  }
-  th, td {
-    padding: 12px 14px;
-    text-align: left;
-    vertical-align: top;
-    font-size: 0.95rem;
-  }
-  tbody tr:nth-child(even) {
-    background: rgba(37, 99, 235, 0.08);
-  }
-  tbody tr:hover {
-    background: rgba(37, 99, 235, 0.15);
-  }
-  .actions-column {
-    text-align: center;
-    width: 120px;
-  }
-  .empty-row td {
-    text-align: center;
-    padding: 24px 12px;
-    color: #6b7280;
-    font-style: italic;
-  }
-  .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: capitalize;
-    background: #e2e8f0;
-    color: #0f172a;
-  }
-  .status-completed {
-    background: #dcfce7;
-    color: #166534;
-  }
-  .status-downloading {
-    background: #dbeafe;
-    color: #1e3a8a;
-  }
-  .status-error, .status-failed {
-    background: #fee2e2;
-    color: #991b1b;
-  }
-  .status-queued, .status-pending {
-    background: #fef3c7;
-    color: #92400e;
-  }
-  .progress-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .progress-track {
-    flex: 1;
-    height: 8px;
-    border-radius: 999px;
-    background: #e2e8f0;
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%;
-    background: #2563eb;
-    transition: width 0.2s ease;
-  }
-  .progress-value {
-    min-width: 42px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: #1f2937;
-  }
-  .icon-button {
-    border: none;
-    background: transparent;
-    padding: 6px;
-    border-radius: 999px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background 0.2s ease, transform 0.2s ease;
-  }
-  .icon-button svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
-  }
-  .icon-button.download-button {
-    color: #2563eb;
-  }
-  .icon-button.delete-button {
-    color: #dc2626;
-  }
-  .icon-button:hover:not([disabled]) {
-    background: rgba(37, 99, 235, 0.12);
-    transform: translateY(-1px);
-  }
-  .icon-button[disabled] {
-    color: #9ca3af;
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-  .title {
-    width: clamp(260px, 40vw, 520px);
-  }
-  .title-text {
-    font-weight: 600;
-    margin-bottom: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .title-url {
-    font-size: 0.85rem;
-    color: #64748b;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 1;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .title-url a {
-    color: inherit;
-    text-decoration: underline;
-  }
-  .muted {
-    color: #94a3b8;
-  }
-  .summary {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin: 20px 0;
-    color: #475569;
-    font-size: 0.95rem;
-  }
-  .pagination {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
-  .pagination a,
-  .pagination span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 38px;
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: 1px solid #d0d7de;
-    text-decoration: none;
-    color: inherit;
-    font-weight: 600;
-    background: white;
-  }
-  .pagination .current {
-    background: #2563eb;
-    color: white;
-    border-color: #2563eb;
-  }
-  .pagination .disabled {
-    color: #94a3b8;
-    cursor: not-allowed;
-    background: #f8fafc;
-  }
-  .dialog-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-  .dialog-backdrop.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .dialog {
-    background: #fff;
-    border-radius: 16px;
-    padding: 24px;
-    max-width: 400px;
-    width: 92%;
-    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
-  }
-  .dialog h2 {
-    margin-top: 0;
-    margin-bottom: 8px;
-  }
-  .dialog form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .dialog input[type="url"] {
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid #d1d5db;
-    font-size: 1rem;
-  }
-  .dialog-buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 8px;
-  }
-  .form-helper {
-    color: #dc2626;
-    font-size: 0.85rem;
-  }
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  @media (max-width: 768px) {
-    .card {
-      padding: 16px;
-    }
-    .toolbar {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .toolbar-actions {
-      justify-content: stretch;
-    }
-    .toolbar-actions button {
-      flex: 1;
-    }
-    table, thead, tbody, th, tr, td {
-      display: block;
-    }
-    thead {
-      clip: rect(0 0 0 0);
-      height: 1px;
-      width: 1px;
-      overflow: hidden;
-      position: absolute;
-    }
-    tbody tr {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
-      margin-bottom: 16px;
-      padding: 16px;
-    }
-    td {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 10px 0;
-    }
-    td::before {
-      content: attr(data-label);
-      font-weight: 600;
-      color: #475569;
-    }
-    .actions {
-      justify-content: flex-start;
-      gap: 12px;
-    }
-    .actions::before {
-      align-self: center;
-    }
-    .title-text, .title-url {
-      white-space: normal;
-    }
-    .summary {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 8px;
-    }
-  }
-`;
+interface HistoryClientConfig {
+  wsPath: string;
+}
 
-const CLIENT_SCRIPT = String.raw`
-  (function() {
-    const backdrop = document.querySelector('[data-dialog="add-download"]');
-    const form = backdrop ? backdrop.querySelector('form[data-form="add-download"]') : null;
-    const urlInput = form ? form.querySelector('input[name="url"]') : null;
-    const errorMessage = form ? form.querySelector('[data-error-message]') : null;
+function historyClient(config: HistoryClientConfig): void {
+  const backdrop = document.querySelector('[data-dialog="add-download"]') as HTMLElement | null;
+  const form = backdrop ? (backdrop.querySelector('form[data-form="add-download"]') as HTMLFormElement | null) : null;
+  const urlInput = form ? (form.querySelector('input[name="url"]') as HTMLInputElement | null) : null;
+  const errorMessage = form ? (form.querySelector('[data-error-message]') as HTMLElement | null) : null;
 
-    function openDialog() {
-      if (!backdrop) return;
-      backdrop.hidden = false;
-      requestAnimationFrame(() => {
-        backdrop.classList.add('visible');
-        if (urlInput) {
-          urlInput.value = '';
-          urlInput.focus();
-        }
-        if (errorMessage) {
-          errorMessage.hidden = true;
-        }
-      });
-    }
-
-    function closeDialog() {
-      if (!backdrop) return;
-      backdrop.classList.remove('visible');
-      setTimeout(() => {
-        backdrop.hidden = true;
-      }, 150);
-    }
-
-    function validateUrl(value) {
-      try {
-        const parsed = new URL(value);
-        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-      } catch (error) {
-        return false;
-      }
-    }
-
-    function deriveUrlId(value) {
-      try {
-        const parsed = new URL(value);
-        if (parsed.searchParams.has('list')) {
-          return parsed.searchParams.get('list');
-        }
-        const pathname = parsed.pathname || '';
-        const shortsMatch = pathname.match(/\\/shorts\\/([a-zA-Z0-9_-]{11})/u);
-        if (shortsMatch && shortsMatch[1]) {
-          return shortsMatch[1];
-        }
-        const watchId = parsed.searchParams.get('v');
-        if (watchId) {
-          return watchId;
-        }
-        if (parsed.hostname === 'youtu.be') {
-          const [, id] = pathname.split('/');
-          if (id) {
-            return id;
-          }
-        }
-        return parsed.href;
-      } catch (error) {
-        return '';
-      }
-    }
-
-    const openButton = document.querySelector('[data-action="open-add-dialog"]');
-    openButton?.addEventListener('click', openDialog);
-
-    const refreshButton = document.querySelector('[data-action="refresh"]');
-    refreshButton?.addEventListener('click', () => {
-      window.location.reload();
-    });
-
-    backdrop?.addEventListener('click', (event) => {
-      if (event.target === backdrop) {
-        closeDialog();
-      }
-    });
-
-    const cancelButton = backdrop ? backdrop.querySelector('[data-action="cancel-dialog"]') : null;
-    cancelButton?.addEventListener('click', closeDialog);
-
-    form?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!urlInput) return;
-      const value = urlInput.value.trim();
-      if (!validateUrl(value)) {
-        if (errorMessage) {
-          errorMessage.hidden = false;
-        }
+  function openDialog(): void {
+    if (!backdrop) return;
+    backdrop.hidden = false;
+    requestAnimationFrame(() => {
+      backdrop.classList.add('visible');
+      if (urlInput) {
+        urlInput.value = '';
         urlInput.focus();
-        return;
       }
-
       if (errorMessage) {
         errorMessage.hidden = true;
       }
+    });
+  }
+
+  function closeDialog(): void {
+    if (!backdrop) return;
+    backdrop.classList.remove('visible');
+    window.setTimeout(() => {
+      backdrop.hidden = true;
+    }, 150);
+  }
+
+  function validateUrl(value: string): boolean {
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  function deriveUrlId(value: string): string {
+    try {
+      const parsed = new URL(value);
+      if (parsed.searchParams.has('list')) {
+        return parsed.searchParams.get('list') ?? '';
+      }
+      const pathname = parsed.pathname || '';
+      const shortsMatch = pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/u);
+      if (shortsMatch && shortsMatch[1]) {
+        return shortsMatch[1];
+      }
+      const watchId = parsed.searchParams.get('v');
+      if (watchId) {
+        return watchId;
+      }
+      if (parsed.hostname === 'youtu.be') {
+        const [, id] = pathname.split('/');
+        if (id) {
+          return id;
+        }
+      }
+      return parsed.href;
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  const openButton = document.querySelector('[data-action="open-add-dialog"]');
+  openButton?.addEventListener('click', openDialog);
+
+  const refreshButton = document.querySelector('[data-action="refresh"]');
+  refreshButton?.addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  backdrop?.addEventListener('click', (event) => {
+    if (event.target === backdrop) {
+      closeDialog();
+    }
+  });
+
+  const cancelButton = backdrop ? backdrop.querySelector('[data-action="cancel-dialog"]') : null;
+  cancelButton?.addEventListener('click', closeDialog);
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!urlInput) return;
+    const value = urlInput.value.trim();
+    if (!validateUrl(value)) {
+      if (errorMessage) {
+        errorMessage.hidden = false;
+      }
+      urlInput.focus();
+      return;
+    }
+
+    if (errorMessage) {
+      errorMessage.hidden = true;
+    }
+
+    try {
+      const response = await fetch('/history/request-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: value, urlId: deriveUrlId(value) })
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        window.alert(data.error || '다운로드 요청에 실패했습니다.');
+        return;
+      }
+
+      closeDialog();
+      window.location.reload();
+    } catch (_error) {
+      window.alert('다운로드 요청 중 오류가 발생했습니다.');
+    }
+  });
+
+  const escapeSelector: (value: string) => string = typeof window.CSS !== 'undefined' && typeof window.CSS.escape === 'function'
+    ? (value: string) => window.CSS.escape(value)
+    : (value: string) => String(value).replace(/[\s#:;.]/g, '_');
+
+  function updateRowState(row: Element | null, state: Record<string, unknown>): void {
+    if (!row || !state) {
+      return;
+    }
+
+    if (typeof state.title === 'string' && state.title.trim()) {
+      const titleElement = row.querySelector('.title-text') as HTMLElement | null;
+      if (titleElement) {
+        const trimmed = state.title.trim();
+        titleElement.textContent = trimmed;
+        titleElement.title = trimmed;
+      }
+    }
+
+    if (typeof state.url === 'string' && state.url) {
+      (row as HTMLElement).dataset.sourceUrl = state.url;
+      const urlContainer = row.querySelector('.title-url') as HTMLElement | null;
+      if (urlContainer) {
+        const safeUrl = state.url;
+        urlContainer.innerHTML = `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
+        urlContainer.title = safeUrl;
+      }
+    }
+
+    if (typeof state.status === 'string') {
+      (row as HTMLElement).dataset.status = state.status;
+      const badge = row.querySelector('.status .status-badge') as HTMLElement | null;
+      if (badge) {
+        const nextStatus = state.status.toLowerCase();
+        badge.textContent = nextStatus;
+        badge.className = `status-badge status-${nextStatus}`;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(state, 'error')) {
+      const errorCell = row.querySelector('.error') as HTMLElement | null;
+      if (errorCell) {
+        const message = state.error ? String(state.error) : '';
+        errorCell.innerHTML = message
+          ? `<span title="${message}">${message}</span>`
+          : '<span class="muted">-</span>';
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(state, 'percent')) {
+      const wrapper = row.querySelector('.progress .progress-wrapper') as HTMLElement | null;
+      const fill = row.querySelector('.progress .progress-fill') as HTMLElement | null;
+      const valueLabel = row.querySelector('.progress .progress-value') as HTMLElement | null;
+      if (wrapper && fill && valueLabel) {
+        const numeric = Number.isFinite(state.percent as number)
+          ? Math.max(0, Math.min(100, Number(state.percent)))
+          : 0;
+        const rounded = Math.round(numeric);
+        fill.style.width = `${rounded}%`;
+        wrapper.setAttribute('aria-valuenow', String(rounded));
+        valueLabel.textContent = `${rounded}%`;
+      }
+    }
+
+    const stopButton = row.querySelector('.stop-button') as HTMLButtonElement | null;
+    const resumeButton = row.querySelector('.resume-button') as HTMLButtonElement | null;
+    const isActive = state.status === 'downloading' || state.status === 'queued';
+    if (stopButton) {
+      stopButton.disabled = !isActive;
+    }
+    if (resumeButton) {
+      resumeButton.disabled = isActive;
+    }
+  }
+
+  function handleDownloadState(state: Record<string, unknown> & { urlId?: string }): void {
+    if (!state || !state.urlId) {
+      return;
+    }
+
+    const row = document.querySelector(`tr[data-url-id="${escapeSelector(state.urlId)}"]`);
+    if (!row) {
+      return;
+    }
+
+    updateRowState(row, state);
+  }
+
+  function openWebSocket(): WebSocket | null {
+    const normalisedPath = config.wsPath.startsWith('/') ? config.wsPath : `/${config.wsPath}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}${normalisedPath}`;
+
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(wsUrl);
+    } catch (error) {
+      console.error('웹소켓 연결 실패', error);
+      return null;
+    }
+
+    socket.addEventListener('message', (event) => {
+      try {
+        const data = JSON.parse(String(event.data)) as { type?: string; payload?: Record<string, unknown> };
+        if (data?.type === 'download' && data.payload) {
+          handleDownloadState(data.payload);
+        } else if (data?.type === 'download-finished' && data.payload) {
+          handleDownloadState({ ...data.payload, percent: 100 });
+        }
+      } catch (messageError) {
+        console.error('웹소켓 메시지 파싱 실패', messageError);
+      }
+    });
+
+    socket.addEventListener('close', () => {
+      window.setTimeout(openWebSocket, 2000);
+    });
+
+    socket.addEventListener('error', () => {
+      socket.close();
+    });
+
+    return socket;
+  }
+
+  openWebSocket();
+
+  document.querySelectorAll<HTMLButtonElement>('.delete-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const urlId = button.dataset.urlId;
+      if (!urlId) return;
+      const confirmed = window.confirm('정말로 이 다운로드 이력을 삭제하시겠습니까? 파일도 함께 삭제됩니다.');
+      if (!confirmed) {
+        return;
+      }
 
       try {
-        const response = await fetch('/history/request-download', {
+        const response = await fetch(`/history/${encodeURIComponent(urlId)}`, { method: 'DELETE' });
+        if (!response.ok) {
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          window.alert(data.error || '삭제에 실패했습니다.');
+          return;
+        }
+        window.location.reload();
+      } catch (_error) {
+        window.alert('삭제 중 오류가 발생했습니다.');
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.stop-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (button.disabled) {
+        return;
+      }
+      const urlId = button.dataset.urlId;
+      if (!urlId) return;
+
+      button.disabled = true;
+      try {
+        const response = await fetch('/stop_download', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: value, urlId: deriveUrlId(value) })
+          body: JSON.stringify({ urlId })
         });
 
         if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          alert(data.error || '다운로드 요청에 실패했습니다.');
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          window.alert(data.error || '다운로드 정지에 실패했습니다.');
+          button.disabled = false;
           return;
         }
 
-        closeDialog();
-        window.location.reload();
-      } catch (error) {
-        alert('다운로드 요청 중 오류가 발생했습니다.');
+        const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+        if (state) {
+          handleDownloadState(state);
+        }
+      } catch (_error) {
+        window.alert('다운로드 정지 중 오류가 발생했습니다.');
+        button.disabled = false;
       }
     });
+  });
 
-    const escapeSelector = window.CSS?.escape
-      ? (value) => window.CSS.escape(value)
-      : (value) => String(value).replace(/[\\s#:;.]/g, '_');
-
-    function updateRowState(row, state) {
-      if (!row || !state) {
+  document.querySelectorAll<HTMLButtonElement>('.resume-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (button.disabled) {
         return;
       }
 
-      if (typeof state.title === 'string' && state.title.trim()) {
-        const titleElement = row.querySelector('.title-text');
-        if (titleElement) {
-          titleElement.textContent = state.title.trim();
-          titleElement.title = state.title.trim();
-        }
-      }
+      const urlId = button.dataset.urlId;
+      if (!urlId) return;
 
-      if (typeof state.url === 'string' && state.url) {
-        row.dataset.sourceUrl = state.url;
-        const urlContainer = row.querySelector('.title-url');
-        if (urlContainer) {
-          const safeUrl = state.url;
-          urlContainer.innerHTML = '<a href="' + safeUrl + '" target="_blank" rel="noopener noreferrer">' + safeUrl + '</a>';
-          urlContainer.title = safeUrl;
-        }
-      }
-
-      if (typeof state.status === 'string') {
-        row.dataset.status = state.status;
-        const badge = row.querySelector('.status .status-badge');
-        if (badge) {
-          const nextStatus = state.status.toLowerCase();
-          badge.textContent = nextStatus;
-          badge.className = 'status-badge status-' + nextStatus;
-        }
-      }
-
-      if (Object.prototype.hasOwnProperty.call(state, 'error')) {
-        const errorCell = row.querySelector('.error');
-        if (errorCell) {
-          const message = state.error ? String(state.error) : '';
-          errorCell.innerHTML = message
-            ? '<span title="' + message + '">' + message + '</span>'
-            : '<span class="muted">-</span>';
-        }
-      }
-
-      if (Object.prototype.hasOwnProperty.call(state, 'percent')) {
-        const wrapper = row.querySelector('.progress .progress-wrapper');
-        const fill = row.querySelector('.progress .progress-fill');
-        const valueLabel = row.querySelector('.progress .progress-value');
-        if (wrapper && fill && valueLabel) {
-          const numeric = Number.isFinite(state.percent)
-            ? Math.max(0, Math.min(100, state.percent))
-            : 0;
-          const rounded = Math.round(numeric);
-          fill.style.width = String(rounded) + '%';
-          wrapper.setAttribute('aria-valuenow', String(rounded));
-          valueLabel.textContent = String(rounded) + '%';
-        }
-      }
-
-      const stopButton = row.querySelector('.stop-button');
-      const resumeButton = row.querySelector('.resume-button');
-      const isActive = state.status === 'downloading' || state.status === 'queued';
-      if (stopButton) {
-        stopButton.disabled = !isActive;
-      }
-      if (resumeButton) {
-        resumeButton.disabled = isActive;
-      }
-    }
-
-    function handleDownloadState(state) {
-      if (!state || !state.urlId) {
-        return;
-      }
-
-      const row = document.querySelector('tr[data-url-id="' + escapeSelector(state.urlId) + '"]');
-      if (!row) {
-        return;
-      }
-
-      updateRowState(row, state);
-    }
-
-    function openWebSocket() {
-      const body = document.body;
-      const wsPath = body ? body.dataset.wsPath || '/' : '/';
-      const normalisedPath = wsPath.startsWith('/') ? wsPath : '/' + wsPath;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = protocol + '//' + window.location.host + normalisedPath;
-
-      let socket;
+      button.disabled = true;
       try {
-        socket = new WebSocket(wsUrl);
-      } catch (error) {
-        console.error('웹소켓 연결 실패', error);
-        return null;
+        const response = await fetch('/restart_download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urlId })
+        });
+
+        if (!response.ok) {
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          window.alert(data.error || '다운로드 재시작에 실패했습니다.');
+          button.disabled = false;
+          return;
+        }
+
+        const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+        if (state) {
+          handleDownloadState(state);
+        }
+      } catch (_error) {
+        window.alert('다운로드 재시작 중 오류가 발생했습니다.');
+        button.disabled = false;
       }
-
-      socket.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data?.type === 'download' && data.payload) {
-            handleDownloadState(data.payload);
-          } else if (data?.type === 'download-finished' && data.payload) {
-            handleDownloadState({ ...data.payload, percent: 100 });
-          }
-        } catch (error) {
-          console.error('웹소켓 메시지 파싱 실패', error);
-        }
-      });
-
-      socket.addEventListener('close', () => {
-        setTimeout(openWebSocket, 2000);
-      });
-
-      socket.addEventListener('error', () => {
-        socket.close();
-      });
-
-      return socket;
-    }
-
-    openWebSocket();
-
-    document.querySelectorAll('.delete-button').forEach((button) => {
-      button.addEventListener('click', async () => {
-        const urlId = button.dataset.urlId;
-        if (!urlId) return;
-        const confirmed = window.confirm('정말로 이 다운로드 이력을 삭제하시겠습니까? 파일도 함께 삭제됩니다.');
-        if (!confirmed) {
-          return;
-        }
-
-        try {
-          const response = await fetch('/history/' + encodeURIComponent(urlId), { method: 'DELETE' });
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            alert(data.error || '삭제에 실패했습니다.');
-            return;
-          }
-          window.location.reload();
-        } catch (error) {
-          alert('삭제 중 오류가 발생했습니다.');
-        }
-      });
     });
+  });
 
-    document.querySelectorAll('.stop-button').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (button.disabled) {
-          return;
-        }
-        const urlId = button.dataset.urlId;
-        if (!urlId) return;
-
-        button.disabled = true;
-        try {
-          const response = await fetch('/stop_download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urlId })
-          });
-
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            alert(data.error || '다운로드 정지에 실패했습니다.');
-            button.disabled = false;
-            return;
-          }
-
-          const state = await response.json().catch(() => null);
-          if (state) {
-            handleDownloadState(state);
-          }
-        } catch (error) {
-          alert('다운로드 정지 중 오류가 발생했습니다.');
-          button.disabled = false;
-        }
-      });
+  document.querySelectorAll<HTMLButtonElement>('.download-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.disabled) {
+        return;
+      }
+      const urlId = button.dataset.urlId;
+      if (!urlId) return;
+      window.location.href = `/history/${encodeURIComponent(urlId)}/file`;
     });
+  });
+}
 
-    document.querySelectorAll('.resume-button').forEach((button) => {
-      button.addEventListener('click', async () => {
-        if (button.disabled) {
-          return;
-        }
+function serializeHistoryClient(config: HistoryClientConfig): string {
+  return `(${historyClient.toString()})(${JSON.stringify(config)});`;
+}
 
-        const urlId = button.dataset.urlId;
-        if (!urlId) return;
 
-        button.disabled = true;
-        try {
-          const response = await fetch('/restart_download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urlId })
-          });
 
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            alert(data.error || '다운로드 재시작에 실패했습니다.');
-            button.disabled = false;
-            return;
-          }
 
-          const state = await response.json().catch(() => null);
-          if (state) {
-            handleDownloadState(state);
-          }
-        } catch (error) {
-          alert('다운로드 재시작 중 오류가 발생했습니다.');
-          button.disabled = false;
-        }
-      });
-    });
 
-    document.querySelectorAll('.download-button').forEach((button) => {
-      button.addEventListener('click', () => {
-        if (button.disabled) {
-          return;
-        }
-        const urlId = button.dataset.urlId;
-        if (!urlId) return;
-        window.location.href = '/history/' + encodeURIComponent(urlId) + '/file';
-      });
-    });
-  })();
-`;
 
 function buildPageLink(baseParams: URLSearchParams, overrides: Record<string, string | number | null | undefined>): string {
   const params = new URLSearchParams(baseParams);
@@ -984,7 +614,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       <meta charSet="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>다운로드 이력</title>
-      <style dangerouslySetInnerHTML={{ __html: GLOBAL_STYLES }} />
+      <link rel="stylesheet" href="/history/assets/history-page.css" />
     </head>
     <body data-ws-path={wsPath || '/'}>
       <div className="card">
@@ -1031,7 +661,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           </form>
         </div>
       </div>
-      <script dangerouslySetInnerHTML={{ __html: CLIENT_SCRIPT }} />
+      <script dangerouslySetInnerHTML={{ __html: serializeHistoryClient({ wsPath }) }} />
     </body>
   </html>
 );
