@@ -2,8 +2,9 @@ import * as React from 'react';
 
 interface AppHeaderProps {
     running: boolean;
-    port: number;
-    error?: string | undefined;
+    port?: number;
+    error?: string;
+
     restartPending: boolean;
     onRestart: () => void;
 }

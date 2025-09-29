@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
+    "jsx": "react-jsx",
     "outDir": "dist",
     "rootDir": "src",
     "esModuleInterop": true,
@@ -11,6 +12,6 @@
     "resolveJsonModule": true,
     "declaration": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["dist"]
 }

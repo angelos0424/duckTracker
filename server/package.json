@@ -14,10 +14,15 @@
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
-    "better-sqlite3": "^9.4.1"
+    "better-sqlite3": "^9.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.7",
+
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
   }
