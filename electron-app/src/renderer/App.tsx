@@ -91,6 +91,7 @@ const App: React.FC = () => {
     }, [ipc, settings?.httpPort]);
 
     const statusRunning = serverStatus?.running ?? false;
+
     const port = serverStatus?.httpPort ?? settings?.httpPort;
 
     if (downloadsLoading || settingsLoading) {

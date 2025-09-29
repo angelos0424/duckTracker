@@ -110,7 +110,8 @@ export function loadConfig(): ServerConfig {
   const wsPath = process.env.WS_PATH || '/';
 
   const qualityLimit = normaliseQuality(process.env.DOWNLOAD_QUALITY);
-  const format = buildFormat(process.env.DOWNLOAD_FORMAT || DEFAULT_FORMAT, qualityLimit);
+
+  const format = process.env.DOWNLOAD_FORMAT || buildFormat(DEFAULT_FORMAT, qualityLimit);
   const template = process.env.OUTPUT_TEMPLATE || DEFAULT_TEMPLATE;
 
   const ensureDir = process.env.SKIP_DIR_CREATION !== 'true';
