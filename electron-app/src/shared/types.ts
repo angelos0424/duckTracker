@@ -30,7 +30,7 @@ export interface AppSettings {
 export interface ServerStatus {
   running: boolean;
   httpPort: number | undefined;
-  error?: string;
+  error?: string | undefined;
 }
 
 export interface ValidationResult {
