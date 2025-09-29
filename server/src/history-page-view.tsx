@@ -162,6 +162,11 @@ function historyClient(config: HistoryClientConfig): void {
       }
     }
 
+    if (Object.prototype.hasOwnProperty.call(state, 'filePath')) {
+      const filePathValue = typeof state.filePath === 'string' ? state.filePath : '';
+      (row as HTMLElement).dataset.filePath = filePathValue;
+    }
+
     if (Object.prototype.hasOwnProperty.call(state, 'error')) {
       const errorCell = row.querySelector('.error') as HTMLElement | null;
       if (errorCell) {
@@ -195,6 +200,29 @@ function historyClient(config: HistoryClientConfig): void {
     }
     if (resumeButton) {
       resumeButton.disabled = isActive;
+    }
+
+    const downloadButton = row.querySelector('.download-button') as HTMLButtonElement | null;
+    const removeFileButton = row.querySelector('.remove-file-button') as HTMLButtonElement | null;
+    const currentStatus = typeof state.status === 'string'
+      ? state.status
+      : (row as HTMLElement).dataset.status || '';
+    const currentFilePath = Object.prototype.hasOwnProperty.call(state, 'filePath')
+      ? typeof state.filePath === 'string' ? state.filePath : ''
+      : (row as HTMLElement).dataset.filePath || '';
+    const hasFile = currentFilePath.trim().length > 0;
+    const canDownload = hasFile && currentStatus === 'completed';
+
+    if (downloadButton) {
+      downloadButton.disabled = !canDownload;
+      const title = canDownload ? '파일 다운로드' : '완료된 항목만 다운로드할 수 있습니다.';
+      downloadButton.title = title;
+      downloadButton.setAttribute('aria-label', title);
+    }
+
+    if (removeFileButton) {
+      removeFileButton.disabled = !hasFile;
+      removeFileButton.title = hasFile ? '파일만 삭제' : '삭제할 파일이 없습니다.';
     }
   }
 
@@ -342,14 +370,101 @@ function historyClient(config: HistoryClientConfig): void {
     });
   });
 
+  function extractFilename(response: Response, fallback: string): string {
+    const disposition = response.headers.get('Content-Disposition');
+    if (!disposition) {
+      return fallback;
+    }
+
+    const encodedMatch = /filename\*=UTF-8''([^;]+)/iu.exec(disposition);
+    const quotedMatch = /filename="?([^";]+)"?/iu.exec(disposition);
+    const raw = encodedMatch?.[1] ?? quotedMatch?.[1];
+    if (!raw) {
+      return fallback;
+    }
+
+    try {
+      return decodeURIComponent(raw.trim());
+    } catch (_error) {
+      return raw.trim();
+    }
+  }
+
   document.querySelectorAll<HTMLButtonElement>('.download-button').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       if (button.disabled) {
         return;
       }
       const urlId = button.dataset.urlId;
       if (!urlId) return;
-      window.location.href = `/history/${encodeURIComponent(urlId)}/file`;
+
+      button.disabled = true;
+      try {
+        const response = await fetch(`/history/${encodeURIComponent(urlId)}/file`, { method: 'GET' });
+        if (!response.ok) {
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          window.alert(data.error || '파일을 다운로드할 수 없습니다.');
+          button.disabled = false;
+          return;
+        }
+
+        const blob = await response.blob();
+        const filename = extractFilename(response, `${urlId}.bin`);
+        const objectUrl = URL.createObjectURL(blob);
+
+        const anchor = document.createElement('a');
+        anchor.href = objectUrl;
+        anchor.download = filename;
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        button.disabled = false;
+      } catch (_error) {
+        window.alert('파일 다운로드 중 오류가 발생했습니다.');
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.remove-file-button').forEach((button) => {
+    button.addEventListener('click', async () => {
+      if (button.disabled) {
+        return;
+      }
+      const urlId = button.dataset.urlId;
+      if (!urlId) return;
+
+      const confirmed = window.confirm('이력은 유지하고 서버에 저장된 파일만 삭제합니다. 계속하시겠습니까?');
+      if (!confirmed) {
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        const response = await fetch(`/history/${encodeURIComponent(urlId)}/file`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          window.alert(data.error || '파일 삭제에 실패했습니다.');
+          button.disabled = false;
+          return;
+        }
+
+        const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+        if (state) {
+          handleDownloadState(state);
+        } else {
+          button.disabled = false;
+        }
+      } catch (_error) {
+        window.alert('파일 삭제 중 오류가 발생했습니다.');
+        button.disabled = false;
+      }
     });
   });
 }
@@ -401,6 +516,7 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
   const status = item.status || '';
   const isActive = status === 'downloading' || status === 'queued';
   const canDownload = !downloadDisabled;
+  const fileExists = Boolean(item.filePath);
 
   return (
     <>
@@ -437,6 +553,18 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
           <path d="M5 20h14v-2H5v2zm7-18l-5.5 6h3.5v6h4v-6H17L12 2z" />
         </svg>
       </button>
+      <button
+        className="icon-button remove-file-button"
+        data-url-id={urlId}
+        title={fileExists ? '파일만 삭제' : '삭제할 파일이 없습니다.'}
+        aria-label="파일 삭제"
+        disabled={!fileExists}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
+          <path d="M10 11h1.5v6H10zm2.5 0H14v6h-1.5z" />
+        </svg>
+      </button>
       <button className="icon-button delete-button" data-url-id={urlId} title="이력 삭제" aria-label="이력 삭제">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
@@ -462,8 +590,8 @@ const TableRow: React.FC<{ item: DownloadRecordRow }> = ({ item }) => {
   const downloadTitle = downloadDisabled ? '완료된 항목만 다운로드할 수 있습니다.' : '파일 다운로드';
 
   return (
-    <tr data-url-id={urlId} data-status={status} data-source-url={sourceUrl}>
-      <td className="title" data-label="제목 / URL ID">
+    <tr data-url-id={urlId} data-status={status} data-source-url={sourceUrl} data-file-path={item.filePath || ''}>
+      <td className="title" data-label="제목">
         <div className="title-text" title={title || '(제목 없음)'}>
           {title ? title : <span className="muted">(제목 없음)</span>}
         </div>
@@ -506,7 +634,7 @@ const HistoryTable: React.FC<{ items: DownloadRecordRow[] }> = ({ items }) => (
   <table role="grid">
     <thead>
       <tr>
-        <th>제목 / URL ID</th>
+        <th>제목</th>
         <th>상태</th>
         <th>진행률</th>
         <th>오류</th>

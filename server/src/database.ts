@@ -221,6 +221,16 @@ export function recordDownloadFilePath(payload: DownloadFilePathPayload): void {
     });
 }
 
+export function clearDownloadFilePath(urlId: string): void {
+    if (!urlId) {
+        return;
+    }
+
+    const db = assertDb();
+    const stmts = ensureStatements(db);
+    stmts.setFilePath.run({ urlId, filePath: '' });
+}
+
 export function recordDownloadError(payload: DownloadErrorPayload): void {
     const db = assertDb();
     const stmts = ensureStatements(db);

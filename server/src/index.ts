@@ -14,6 +14,7 @@ import {
     searchDownloads,
     getDownloadState,
     recordDownloadFilePath,
+    clearDownloadFilePath,
     deleteDownloads,
     type SearchDownloadsResult
 } from './database';
@@ -380,6 +381,49 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
     }
 }
 
+async function handleHistoryFileDelete(_req: IncomingMessage, res: ServerResponse, urlId: string | undefined): Promise<void> {
+    try {
+        if (!urlId) {
+            jsonResponse(res, 400, { error: 'urlId is required' });
+            return;
+        }
+
+        const record = getDownloadState(urlId);
+        if (!record) {
+            jsonResponse(res, 404, { error: '다운로드 정보를 찾을 수 없습니다.' });
+            return;
+        }
+
+        const filePath = record.filePath;
+        if (!filePath) {
+            jsonResponse(res, 404, { error: '삭제할 파일이 없습니다.' });
+            return;
+        }
+
+        const resolved = resolveWithinDownloadDir(filePath);
+        if (!resolved) {
+            jsonResponse(res, 403, { error: '다운로드 폴더 밖의 파일입니다.' });
+            return;
+        }
+
+        try {
+            await fs.promises.unlink(resolved);
+        } catch (error) {
+            const err = error as NodeJS.ErrnoException;
+            if (err.code !== 'ENOENT') {
+                jsonResponse(res, 500, { error: '파일 삭제에 실패했습니다.' });
+                return;
+            }
+        }
+
+        clearDownloadFilePath(urlId);
+        jsonResponse(res, 200, { urlId, filePath: '', status: record.status || 'unknown' });
+    } catch (error) {
+        const err = error as Error;
+        jsonResponse(res, 500, { error: err.message });
+    }
+}
+
 async function handleStop(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
         const body = await collectRequestBody(req);
@@ -522,6 +566,10 @@ const server = http.createServer((req, res) => {
 
     if (req.method === 'DELETE' && parsedUrl.pathname && parsedUrl.pathname.startsWith('/history/')) {
         const segments = parsedUrl.pathname.split('/').filter(Boolean);
+        if (segments.length === 3 && segments[2] === 'file') {
+            void handleHistoryFileDelete(req, res, decodeURIComponent(segments[1]));
+            return;
+        }
         if (segments.length === 2) {
             void handleHistoryDelete(req, res, decodeURIComponent(segments[1]));
             return;
