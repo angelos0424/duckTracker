@@ -191,19 +191,30 @@ const GLOBAL_STYLES = String.raw`
     cursor: not-allowed;
     opacity: 0.7;
   }
+  .title {
+    width: clamp(260px, 40vw, 520px);
+  }
   .title-text {
     font-weight: 600;
     margin-bottom: 4px;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .title-url {
     font-size: 0.85rem;
     color: #64748b;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .title-url a {
     color: inherit;
