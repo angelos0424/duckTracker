@@ -28,9 +28,13 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir yt-dlp
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
+COPY tsconfig.json ./
 COPY src ./src
+
+RUN npm run build \
+  && npm prune --omit=dev
 
 ENV NODE_ENV=production
 
@@ -38,4 +42,4 @@ ARG PORT=8080
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD ["node", "src/index.js"]
+CMD ["node", "dist/index.js"]
