@@ -26,7 +26,7 @@
       "server": {
         "title": "Server Configuration",
         "port": "Server Port",
-        "port_help": "Port for server (1024-65535)"
+        "port_help": "Port used for the HTTP API and live updates (1024-65535)"
       },
       "application": {
         "title": "Application Behavior",
@@ -47,7 +47,7 @@
     },
     "dialogs": {
       "save_confirm_title": "Server Restart Required",
-      "save_confirm_message": "Changing server ports requires restarting the server. This will temporarily disconnect any active downloads. Do you want to continue?",
+      "save_confirm_message": "Changing the server port requires restarting the server. This will temporarily disconnect any active downloads. Do you want to continue?",
       "save_confirm_button": "Save & Restart",
       "reset_confirm_title": "Reset Settings",
       "reset_confirm_message": "Are you sure you want to reset all settings to their default values? This action cannot be undone.",

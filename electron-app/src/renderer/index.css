@@ -88,6 +88,87 @@ button:disabled {
   gap: 16px;
 }
 
+.server-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  background-color: #f8fafc;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--danger-color);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.12);
+}
+
+.status-indicator.online {
+  background-color: var(--success-color);
+}
+
+.status-indicator.offline {
+  background-color: var(--danger-color);
+}
+
+.status-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.status-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.status-ports {
+  font-size: 12px;
+  color: var(--text-light-color);
+}
+
+.status-error {
+  color: var(--danger-color);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: help;
+}
+
+.restart-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  background-color: var(--content-background-color);
+  color: var(--text-light-color);
+  padding: 6px 12px;
+  border-radius: var(--border-radius);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.restart-button:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.restart-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.restart-icon {
+  font-size: 16px;
+}
+
+.restart-text {
+  font-size: 13px;
+}
+
 .header-actions button {
   background: none;
   border: none;

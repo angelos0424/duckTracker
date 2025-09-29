@@ -198,7 +198,7 @@ export class ServerManager extends EventEmitter {
   private async checkPortsAvailability(config: ServerConfig): Promise<{ available: boolean; conflicts: string[] }> {
     const conflicts: string[] = [];
     if (!(await this.isPortAvailable(config.port))) {
-      conflicts.push(`HTTP port ${config.port}`);
+      conflicts.push(`Port ${config.port}`);
     }
     return { available: conflicts.length === 0, conflicts };
   }
@@ -456,7 +456,7 @@ export class ServerManager extends EventEmitter {
         });
         this.httpServer.on('error', (err: Error) => reject(err));
       });
-      this.emit('server-started', { httpPort: config.port, wsPort: config.wsPort });
+      this.emit('server-started', { httpPort: config.port });
     } catch (error) {
       await this.cleanup();
       throw error;
@@ -560,8 +560,7 @@ export class ServerManager extends EventEmitter {
   getStatus(): ServerStatus {
     return {
       running: !!this.httpServer,
-      httpPort: this.config?.port,
-      wsPort: this.config?.wsPort
+      httpPort: this.config?.port
     };
   }
 

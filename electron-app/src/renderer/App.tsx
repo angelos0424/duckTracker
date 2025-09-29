@@ -3,7 +3,10 @@ import { useDownloads } from './hooks/useDownloads';
 import { useSettings } from './hooks/useSettings';
 import DownloadHistory from './components/DownloadHistory';
 import Settings from './components/Settings';
-import { useIPC } from './hooks/useIPC';
+import AppHeader from './components/AppHeader';
+import AppTabs from './components/AppTabs';
+import { useIPC, useIPCEvents } from './hooks/useIPC';
+import { ServerStatus } from '../shared/types';
 
 type TabType = 'downloads' | 'settings';
 
@@ -14,6 +17,9 @@ const App: React.FC = () => {
     const [ytDlpVersion, setYtDlpVersion] = React.useState('loading...');
     const [ffmpegVersion, setFfmpegVersion] = React.useState('loading...');
     const ipc = useIPC();
+    const ipcEvents = useIPCEvents();
+    const [serverStatus, setServerStatus] = React.useState<ServerStatus | null>(null);
+    const [restartPending, setRestartPending] = React.useState(false);
 
     const refreshVersions = React.useCallback(async () => {
         try {
@@ -34,40 +40,78 @@ const App: React.FC = () => {
         refreshVersions();
     }, [refreshVersions]);
 
+    React.useEffect(() => {
+        let active = true;
+        const loadStatus = async () => {
+            try {
+                const status = await ipc.getServerStatus();
+                if (active) {
+                    setServerStatus(status);
+                }
+            } catch (error) {
+                console.error('Failed to fetch server status:', error);
+                if (active) {
+                    setServerStatus({
+                        running: false,
+                        httpPort: settings?.httpPort,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    });
+                }
+            }
+        };
+
+        loadStatus();
+        const unsubscribe = ipcEvents.onServerStatusChanged((status) => {
+            setServerStatus(status);
+            setRestartPending(false);
+        });
+
+        return () => {
+            active = false;
+            unsubscribe?.();
+        };
+    }, [ipc, ipcEvents, settings?.httpPort]);
+
+    const handleRestartServer = React.useCallback(async () => {
+        setRestartPending(true);
+        try {
+            await ipc.restartServer();
+            const status = await ipc.getServerStatus();
+            setServerStatus(status);
+        } catch (error) {
+            console.error('Failed to restart server:', error);
+            setServerStatus((prev) => ({
+                running: false,
+                httpPort: prev?.httpPort ?? settings?.httpPort,
+                error: error instanceof Error ? error.message : 'Failed to restart server'
+            }));
+        } finally {
+            setRestartPending(false);
+        }
+    }, [ipc, settings?.httpPort]);
+
+    const statusRunning = serverStatus?.running ?? false;
+    const port = serverStatus?.httpPort ?? settings?.httpPort;
+
     if (downloadsLoading || settingsLoading) {
         return <div className="app-loading"><div className="loading-spinner">Loading...</div></div>;
     }
 
     return (
         <div className="app">
-            <div className="app-header">
-                <div className="header-left">
-                    <h1>YouTube Downloader</h1>
-                    <div className="app-version">v1.0.0</div>
-                </div>
-            </div>
+            <AppHeader
+                running={statusRunning}
+                port={port}
+                error={serverStatus?.error}
+                restartPending={restartPending}
+                onRestart={handleRestartServer}
+            />
 
-            <div className="app-tabs">
-                <div className="tabs-container">
-                    <button
-                        className={`tab ${selectedTab === 'downloads' ? 'active' : ''}`}
-                        onClick={() => setSelectedTab('downloads')}
-                    >
-                        <span className="tab-icon">📥</span>
-                        <span className="tab-text">Downloads</span>
-                        {downloads.length > 0 && (
-                            <span className="tab-badge">{downloads.length}</span>
-                        )}
-                    </button>
-                    <button
-                        className={`tab ${selectedTab === 'settings' ? 'active' : ''}`}
-                        onClick={() => setSelectedTab('settings')}
-                    >
-                        <span className="tab-icon">⚙️</span>
-                        <span className="tab-text">Settings</span>
-                    </button>
-                </div>
-            </div>
+            <AppTabs
+                selected={selectedTab}
+                downloadsCount={downloads.length}
+                onSelect={(tab) => setSelectedTab(tab)}
+            />
 
             <div className="app-content">
                 <div className="content-container">

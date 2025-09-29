@@ -1,5 +1,5 @@
-const path = require('node:path');
-const fs = require('node:fs');
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
 const DEFAULT_DOWNLOAD_DIR = '/downloads';
 const DEFAULT_FORMAT = 'bestvideo+bestaudio/best';
@@ -7,20 +7,54 @@ const DEFAULT_TEMPLATE = '%(id)s.%(ext)s';
 const DEFAULT_YT_DLP_IMAGE = 'ghcr.io/yt-dlp/yt-dlp:latest';
 const DEFAULT_DOCKER_BIN = 'docker';
 
-function parseInteger(value, fallback) {
+type RunnerType = 'docker' | 'binary';
+
+export interface DockerRunnerConfig {
+  type: 'docker';
+  dockerBin: string;
+  dockerImage: string;
+  dockerCommand: string;
+  volumesFrom: string;
+  cookieFilePath: string;
+  chromePath: string;
+  workDir: string;
+}
+
+export interface BinaryRunnerConfig {
+  type: 'binary';
+  ytDlpBinary: string;
+  cookieFilePath?: string;
+  chromePath?: string;
+}
+
+export type RunnerConfig = DockerRunnerConfig | BinaryRunnerConfig;
+
+export interface ServerConfig {
+  downloadDir: string;
+  dbPath: string;
+  format: string;
+  template: string;
+  maxConcurrent: number;
+  httpPort: number;
+  wsPath: string;
+  qualityLimit: number | null;
+  runner: RunnerConfig;
+}
+
+function parseInteger(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
-function normaliseQuality(input) {
+function normaliseQuality(input: string | undefined): number | null {
   if (!input) return null;
   const match = /(?<height>\d{3,4})/u.exec(input);
   if (!match || !match.groups) return null;
   return Number.parseInt(match.groups.height, 10);
 }
 
-function buildFormat(baseFormat, qualityToken) {
+function buildFormat(baseFormat: string, qualityToken: number | null): string {
   if (!qualityToken) {
     return baseFormat;
   }
@@ -33,8 +67,8 @@ function buildFormat(baseFormat, qualityToken) {
   return `bestvideo${limit}+bestaudio/best${limit}`;
 }
 
-function buildRunner(downloadDir) {
-  const runner = (process.env.YT_DLP_RUNNER || 'docker').toLowerCase();
+function buildRunner(downloadDir: string): RunnerConfig {
+  const runner = (process.env.YT_DLP_RUNNER || 'docker').toLowerCase() as RunnerType;
 
   if (runner === 'docker') {
     const dockerImage = process.env.YT_DLP_IMAGE || DEFAULT_YT_DLP_IMAGE;
@@ -59,12 +93,12 @@ function buildRunner(downloadDir) {
   return {
     type: 'binary',
     ytDlpBinary: process.env.YT_DLP_BINARY || 'yt-dlp',
-    cookieFilePath: process.env.COOKIE_FILE_PATH,
-    chromePath: process.env.CHROME_PROFILE_PATH
+    cookieFilePath: process.env.COOKIE_FILE_PATH || undefined,
+    chromePath: process.env.CHROME_PROFILE_PATH || undefined
   };
 }
 
-function loadConfig() {
+export function loadConfig(): ServerConfig {
   const rawDownloadDir = process.env.DOWNLOAD_DIR || DEFAULT_DOWNLOAD_DIR;
   const downloadDir = path.resolve(rawDownloadDir);
 
@@ -78,7 +112,6 @@ function loadConfig() {
   const qualityLimit = normaliseQuality(process.env.DOWNLOAD_QUALITY);
   const format = buildFormat(process.env.DOWNLOAD_FORMAT || DEFAULT_FORMAT, qualityLimit);
   const template = process.env.OUTPUT_TEMPLATE || DEFAULT_TEMPLATE;
-
 
   const ensureDir = process.env.SKIP_DIR_CREATION !== 'true';
   if (ensureDir) {
@@ -98,5 +131,3 @@ function loadConfig() {
     runner: buildRunner(downloadDir)
   };
 }
-
-module.exports = { loadConfig };
