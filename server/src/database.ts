@@ -87,7 +87,7 @@ function ensureStatements(db: BetterSqliteDatabase): Statements {
         last_error = excluded.last_error,
         updated_at = CURRENT_TIMESTAMP
     `),
-        insertIfMissing: db.prepare('INSERT INTO downloads (url_id, status) VALUES (?, "check") ON CONFLICT(url_id) DO NOTHING'),
+        insertIfMissing: db.prepare("INSERT INTO downloads (url_id, status) VALUES (?, 'check') ON CONFLICT(url_id) DO NOTHING"),
         setStatus: db.prepare<{ urlId: string; status: DownloadStatus | string; lastError: string | null }>(`
       UPDATE downloads
       SET status = @status,
