@@ -208,14 +208,18 @@ async function handleDownload(_req: IncomingMessage, res: ServerResponse): Promi
             return;
         }
 
+        console.info('[history] Received download schedule request', { urlId, targetUrl, title });
+
         const scheduleResult = downloadManager.schedule({ url: targetUrl, urlId, title });
         const updatedState = downloadManager.getState(urlId);
         jsonResponse(res, 200, {
             ...(updatedState ?? {}),
             queued: scheduleResult.queued
         });
+        console.info('[history] Download scheduled', { urlId, queued: scheduleResult.queued });
     } catch (error) {
         const err = error as Error;
+        console.error('[history] handleDownload failed', { error: err.message, stack: err.stack });
         jsonResponse(res, 500, { error: err.message });
     }
 }
@@ -226,19 +230,24 @@ async function handleHistoryDownloadRequest(req: IncomingMessage, res: ServerRes
         const targetUrl = body.url;
 
         if (typeof targetUrl !== 'string' || !isValidUrl(targetUrl)) {
+            console.warn('[history] Invalid download request url', { targetUrl });
             jsonResponse(res, 400, { error: 'A valid URL is required.' });
             return;
         }
 
         const derivedId = deriveUrlIdFromUrl(targetUrl);
         if (!derivedId) {
+            console.warn('[history] Unable to derive urlId', { targetUrl });
             jsonResponse(res, 400, { error: 'Could not determine URL identifier.' });
             return;
         }
 
+        console.info('[history] Download request received', { urlId: derivedId, targetUrl });
+
         const existing = downloadManager.getState(derivedId);
         if (existing && (existing.status === 'downloading' || existing.status === 'queued')) {
             jsonResponse(res, 200, existing);
+            console.info('[history] Download already active', { urlId: derivedId, status: existing.status });
             return;
         }
 
@@ -254,8 +263,10 @@ async function handleHistoryDownloadRequest(req: IncomingMessage, res: ServerRes
             ...updatedState,
             queued: scheduleResult.queued
         });
+        console.info('[history] Download scheduled', { urlId: derivedId, queued: scheduleResult.queued });
     } catch (error) {
         const err = error as Error;
+        console.error('[history] handleHistoryDownloadRequest failed', { error: err.message, stack: err.stack });
         jsonResponse(res, 500, { error: err.message });
     }
 }
@@ -274,6 +285,7 @@ async function handleHistoryDelete(_req: IncomingMessage, res: ServerResponse, u
 
         const deleted = deleteDownloads([urlId]);
         if (!deleted || deleted.length === 0) {
+            console.warn('[history] Delete requested for missing urlId', { urlId });
             jsonResponse(res, 404, { error: 'Record not found' });
             return;
         }
@@ -303,8 +315,10 @@ async function handleHistoryDelete(_req: IncomingMessage, res: ServerResponse, u
         );
 
         jsonResponse(res, 200, { success: true, results });
+        console.info('[history] Record and file delete completed', { urlId, results });
     } catch (error) {
         const err = error as Error;
+        console.error('[history] handleHistoryDelete failed', { urlId, error: err.message, stack: err.stack });
         jsonResponse(res, 500, { error: err.message });
     }
 }
@@ -312,18 +326,21 @@ async function handleHistoryDelete(_req: IncomingMessage, res: ServerResponse, u
 async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerResponse, urlId: string | undefined): Promise<void> {
     try {
         if (!urlId) {
+            console.warn('[history] File download without urlId');
             jsonResponse(res, 400, { error: 'urlId is required' });
             return;
         }
 
         const record = getDownloadState(urlId);
         if (!record || !record.filePath) {
+            console.warn('[history] File download missing record', { urlId });
             jsonResponse(res, 404, { error: 'File not available' });
             return;
         }
 
         let resolved = resolveWithinDownloadDir(record.filePath);
         if (!resolved) {
+            console.warn('[history] File download outside directory', { urlId, filePath: record.filePath });
             jsonResponse(res, 403, { error: 'File outside of download directory' });
             return;
         }
@@ -336,12 +353,14 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
             if (err && err.code === 'ENOENT') {
                 const fallback = downloadManager.findExistingFileById(urlId);
                 if (!fallback) {
+                    console.warn('[history] File download fallback not found', { urlId });
                     jsonResponse(res, 404, { error: 'File not found' });
                     return;
                 }
 
                 const normalisedFallback = resolveWithinDownloadDir(fallback);
                 if (!normalisedFallback) {
+                    console.warn('[history] File download fallback outside directory', { urlId, fallback });
                     jsonResponse(res, 403, { error: 'File outside of download directory' });
                     return;
                 }
@@ -352,10 +371,12 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
                     recordDownloadFilePath({ urlId, filePath: resolved });
                 } catch (fallbackError) {
                     const fallbackErr = fallbackError as NodeJS.ErrnoException;
+                    console.error('[history] File download fallback stat failed', { urlId, error: fallbackErr.message });
                     jsonResponse(res, fallbackErr.code === 'ENOENT' ? 404 : 500, { error: 'File not found' });
                     return;
                 }
             } else {
+                console.error('[history] File stat failed', { urlId, error: err.message });
                 jsonResponse(res, 500, { error: 'File not found' });
                 return;
             }
@@ -369,6 +390,7 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
 
         const stream = fs.createReadStream(resolved);
         stream.on('error', () => {
+            console.error('[history] File stream error', { urlId, filePath: resolved });
             if (!res.headersSent) {
                 res.writeHead(500);
             }
@@ -408,9 +430,11 @@ async function handleHistoryFileDelete(_req: IncomingMessage, res: ServerRespons
 
         try {
             await fs.promises.unlink(resolved);
+            console.info('[history] File removed', { urlId, filePath: resolved });
         } catch (error) {
             const err = error as NodeJS.ErrnoException;
             if (err.code !== 'ENOENT') {
+                console.error('[history] File removal failed', { urlId, filePath: resolved, error: err.message });
                 jsonResponse(res, 500, { error: '파일 삭제에 실패했습니다.' });
                 return;
             }
@@ -418,8 +442,10 @@ async function handleHistoryFileDelete(_req: IncomingMessage, res: ServerRespons
 
         clearDownloadFilePath(urlId);
         jsonResponse(res, 200, { urlId, filePath: '', status: record.status || 'unknown' });
+        console.info('[history] Cleared filePath metadata', { urlId });
     } catch (error) {
         const err = error as Error;
+        console.error('[history] handleHistoryFileDelete failed', { urlId, error: err.message, stack: err.stack });
         jsonResponse(res, 500, { error: err.message });
     }
 }
