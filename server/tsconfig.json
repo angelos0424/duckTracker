@@ -11,8 +11,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "types": ["node", "react"]
+    "types": ["node", "react"],
+    "typeRoots": ["./src/types", "./node_modules/@types"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"],
   "exclude": ["dist"]
 }

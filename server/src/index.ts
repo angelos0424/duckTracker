@@ -5,7 +5,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { loadConfig, ServerConfig } from './config';
 import { DownloadManager, DownloadSnapshot } from './download-manager';
-import { handleUpgrade, SimpleWebSocket } from './websocket-server';
+import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server';
 import {
     initDatabase,
     ensureUrlIds,
@@ -21,7 +21,8 @@ import { renderHistoryPageToHtml } from './history-page';
 const config: ServerConfig = loadConfig();
 initDatabase(config.dbPath);
 const downloadManager = new DownloadManager(config);
-const websocketClients = new Set<SimpleWebSocket>();
+const websocketServer = createWebSocketServer();
+const websocketClients = new Set<WebSocket>();
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 type JsonObject = Record<string, JsonValue>;
@@ -85,7 +86,9 @@ async function collectRequestBody(req: IncomingMessage): Promise<JsonObject> {
 function broadcast(message: unknown): void {
     const payload = JSON.stringify(message);
     for (const client of websocketClients) {
-        client.send(payload);
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(payload);
+        }
     }
 }
 
@@ -155,7 +158,7 @@ function deriveUrlIdFromUrl(targetUrl: string): string | null {
     }
 }
 
-function handleWebSocketMessage(ws: SimpleWebSocket, rawMessage: string): void {
+function handleWebSocketMessage(ws: WebSocket, rawMessage: string): void {
     try {
         const parsed = JSON.parse(rawMessage) as { type?: string; data?: { data?: unknown[] } };
 
@@ -461,7 +464,9 @@ function parseInteger(value: unknown, fallback: number): number {
     return fallback;
 }
 
-function handleHistory(_req: IncomingMessage, res: ServerResponse, query: url.ParsedUrlQuery): void {
+type HistoryQuery = Record<string, string | string[] | undefined>;
+
+function handleHistory(_req: IncomingMessage, res: ServerResponse, query: HistoryQuery): void {
     const searchTerm = typeof query.search === 'string' ? query.search.trim() : '';
     let page = parseInteger(query.page, 1);
     let pageSize = parseInteger(query.pageSize, 20);
@@ -548,10 +553,24 @@ const server = http.createServer((req, res) => {
     jsonResponse(res, 404, { error: 'Not found' });
 });
 
+websocketServer.on('connection', (ws) => {
+    websocketClients.add(ws);
+    ws.on('close', () => {
+        websocketClients.delete(ws);
+    });
+    ws.on('error', () => {
+        websocketClients.delete(ws);
+    });
+    ws.on('message', (data) => {
+        const message = typeof data === 'string' ? data : data.toString();
+        handleWebSocketMessage(ws, message);
+    });
+});
+
 server.on('upgrade', (request, socket, head) => {
-    const ws = handleUpgrade(request, socket, head, websocketClients, config.wsPath);
+    const ws = handleUpgrade(websocketServer, request, socket, head, config.wsPath);
     if (ws) {
-        ws.on('message', (message) => handleWebSocketMessage(ws, message));
+        websocketServer.emit('connection', ws, request);
     }
 });
 

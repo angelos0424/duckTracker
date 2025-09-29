@@ -65,7 +65,7 @@ interface Statements {
     setStatus: Statement<{ urlId: string; status: DownloadStatus | string; lastError: string | null }>;
     setFilePath: Statement<{ urlId: string; filePath: string }>;
     setTitle: Statement<{ urlId: string; title: string }>;
-    selectAllIds: Statement<unknown[], { url_id: string }[]>;
+    selectAllIds: Statement<unknown[], { url_id: string }>;
     selectState: Statement<string, DownloadRecordRow | undefined>;
 }
 
@@ -250,7 +250,7 @@ export function ensureUrlIds(urlIds: unknown[]): string[] {
     const stmts = ensureStatements(db);
     const insert = stmts.insertIfMissing;
     const insertMany = db.transaction((ids: string[]) => {
-        ids.forEach((id) => insert.run(id));
+        ids.forEach((id: string) => insert.run(id));
     });
 
     insertMany(unique);
@@ -269,7 +269,7 @@ export function collectServerOnlyUrlIds(incomingIds: string[]): string[] {
     }
 
     const incomingSet = new Set(incomingIds);
-    return existing.filter((id) => !incomingSet.has(id));
+    return existing.filter((id: string) => !incomingSet.has(id));
 }
 
 export function getDownloadState(urlId: string): DownloadRecordRow | null {
@@ -308,7 +308,7 @@ export function deleteDownloads(urlIds: string[]): Array<{ urlId: string; filePa
         return rows;
     });
 
-    return transaction(uniqueIds);
+    return transaction(uniqueIds) as Array<{ urlId: string; filePath: string | null }>;
 }
 
 export function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }: SearchDownloadsInput): SearchDownloadsResult {

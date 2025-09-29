@@ -1,4 +1,4 @@
-import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 import { EventEmitter } from 'node:events';
 import * as readline from 'node:readline';
@@ -30,14 +30,14 @@ export interface DownloadSnapshot {
     error?: string;
 }
 
-interface DownloadManagerEvents {
-    state: (snapshot: DownloadSnapshot) => void;
-    finished: (snapshot: DownloadSnapshot) => void;
-}
+type DownloadManagerEvents = {
+    state: [DownloadSnapshot];
+    finished: [DownloadSnapshot];
+};
 
 interface ActiveDownloadEntry {
     request: DownloadRequest;
-    child: ChildProcessWithoutNullStreams;
+    child: ChildProcess;
     filePath: string;
     stoppedManually: boolean;
     dockerContainerName: string | null;
@@ -249,7 +249,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         ensureDirectory(this.config.downloadDir);
 
         const ytArgs = this.buildArgs(request.url);
-        let spawnResult: { child: ChildProcessWithoutNullStreams; containerName: string | null };
+        let spawnResult: { child: ChildProcess; containerName: string | null };
         try {
             spawnResult = this.spawnDownloadProcess(ytArgs, request);
         } catch (error) {
@@ -364,13 +364,15 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             }
         };
 
-        const stdoutReader = readline.createInterface({ input: child.stdout });
-        stdoutReader.on('line', (line) => {
+        const stdout = child.stdout;
+        const stderr = child.stderr;
+        const stdoutReader = stdout ? readline.createInterface({ input: stdout }) : null;
+        stdoutReader?.on('line', (line) => {
             if (!line) return;
             parseLine(line);
         });
-        const stderrReader = readline.createInterface({ input: child.stderr });
-        stderrReader.on('line', (line) => {
+        const stderrReader = stderr ? readline.createInterface({ input: stderr }) : null;
+        stderrReader?.on('line', (line) => {
             if (!line) return;
             parseLine(line);
         });
@@ -385,8 +387,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         });
 
         child.on('close', (code) => {
-            stdoutReader.close();
-            stderrReader.close();
+            stdoutReader?.close();
+            stderrReader?.close();
 
             if (downloadEntry.finishedEmitted) {
                 this.cleanup(request.urlId);
@@ -490,7 +492,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
     private spawnDownloadProcess(
         ytArgs: string[],
         request: DownloadRequest
-    ): { child: ChildProcessWithoutNullStreams; containerName: string | null } {
+    ): { child: ChildProcess; containerName: string | null } {
         const runner: RunnerConfig = this.config.runner || { type: 'binary', ytDlpBinary: 'yt-dlp' };
         if (isDockerRunner(runner)) {
             if (!runner.volumesFrom) {
@@ -515,7 +517,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             const child = spawn(runner.dockerBin, dockerArgs, {
                 stdio: ['ignore', 'pipe', 'pipe']
-            }) as ChildProcessWithoutNullStreams;
+            });
 
             return { child, containerName };
         }
@@ -523,7 +525,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         const binary = runner.ytDlpBinary || 'yt-dlp';
         const child = spawn(binary, ytArgs, {
             stdio: ['ignore', 'pipe', 'pipe']
-        }) as ChildProcessWithoutNullStreams;
+        });
         return { child, containerName: null };
     }
 
