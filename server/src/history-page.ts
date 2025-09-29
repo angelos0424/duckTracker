@@ -1,6 +1,7 @@
-const { URLSearchParams } = require('node:url');
+import { URLSearchParams } from 'node:url';
+import type { DownloadRecordRow } from './database';
 
-function escapeHtml(value) {
+function escapeHtml(value: unknown): string {
   if (value === null || value === undefined) {
     return '';
   }
@@ -12,7 +13,7 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function buildPageLink(baseParams, overrides) {
+function buildPageLink(baseParams: URLSearchParams, overrides: Record<string, string | number | null | undefined>): string {
   const params = new URLSearchParams(baseParams);
   Object.entries(overrides).forEach(([key, value]) => {
     if (value === null || value === undefined) {
@@ -26,9 +27,28 @@ function buildPageLink(baseParams, overrides) {
   return queryString ? `?${queryString}` : '';
 }
 
-function renderTableRows(items) {
+function formatProgress(value: unknown): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, Math.round(value as number)));
+}
+
+function renderProgressCell(progress: unknown): string {
+  const safeProgress = formatProgress(progress);
+  return `
+    <div class="progress-wrapper" role="progressbar" aria-valuenow="${safeProgress}" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-track">
+        <div class="progress-fill" style="width: ${safeProgress}%"></div>
+      </div>
+      <span class="progress-value">${safeProgress}%</span>
+    </div>
+  `;
+}
+
+function renderTableRows(items: DownloadRecordRow[]): string {
   if (!items || items.length === 0) {
-    return `<tr class="empty-row"><td colspan="6">검색 결과가 없습니다.</td></tr>`;
+    return `<tr class="empty-row"><td colspan="7">검색 결과가 없습니다.</td></tr>`;
   }
 
   return items
@@ -45,6 +65,7 @@ function renderTableRows(items) {
 
       const statusClass = `status-badge status-${status}`;
       const statusLabel = status;
+      const progressValue = item.status === 'completed' ? 100 : 0;
 
       const downloadDisabled = !fileAvailable || status !== 'completed';
       const downloadTitle = downloadDisabled
@@ -52,7 +73,7 @@ function renderTableRows(items) {
         : '파일 다운로드';
 
       return `
-        <tr data-url-id="${urlId}">
+        <tr data-url-id="${urlId}" data-status="${status}" data-source-url="${sourceUrl}">
           <td class="title" data-label="제목">
             <div class="title-text" title="${title || '(제목 없음)'}">${title || '<span class="muted">(제목 없음)</span>'}</div>
             <div class="title-url" title="${urlDisplay}">
@@ -62,12 +83,37 @@ function renderTableRows(items) {
           <td class="status" data-label="상태">
             <span class="${statusClass}">${statusLabel}</span>
           </td>
+          <td class="progress" data-label="진행률">
+            ${renderProgressCell(progressValue)}
+          </td>
           <td class="error" data-label="오류">
             ${lastError ? `<span title="${lastError}">${lastError}</span>` : '<span class="muted">-</span>'}
           </td>
           <td class="created" data-label="생성일">${createdAt || '-'}</td>
           <td class="updated" data-label="업데이트">${updatedAt || '-'}</td>
           <td class="actions" data-label="작업">
+            <button
+              class="icon-button stop-button"
+              data-url-id="${urlId}"
+              title="다운로드 정지"
+              aria-label="다운로드 정지"
+              ${['downloading', 'queued'].includes(item.status) ? '' : 'disabled'}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5h3v14H8zm5 0h3v14h-3z" />
+              </svg>
+            </button>
+            <button
+              class="icon-button resume-button"
+              data-url-id="${urlId}"
+              title="다운로드 재시작"
+              aria-label="다운로드 재시작"
+              ${['downloading', 'queued'].includes(item.status) ? 'disabled' : ''}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </button>
             <button
               class="icon-button download-button"
               data-url-id="${urlId}"
@@ -96,13 +142,23 @@ function renderTableRows(items) {
     .join('');
 }
 
-function renderHistoryPage({
+interface RenderHistoryPageOptions {
+  items: DownloadRecordRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  searchTerm?: string;
+  wsPath?: string;
+}
+
+export function renderHistoryPage({
   items,
   total,
   page,
   pageSize,
-  searchTerm
-}) {
+  searchTerm,
+  wsPath = '/'
+}: RenderHistoryPageOptions): string {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const baseParams = new URLSearchParams();
   if (searchTerm) {
@@ -258,6 +314,29 @@ function renderHistoryPage({
       .status-queued, .status-pending {
         background: #fef3c7;
         color: #92400e;
+      }
+      .progress-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .progress-track {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: #2563eb;
+        transition: width 0.2s ease;
+      }
+      .progress-value {
+        min-width: 42px;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: #1f2937;
       }
       .icon-button {
         border: none;
@@ -470,7 +549,7 @@ function renderHistoryPage({
       }
     </style>
   </head>
-  <body>
+  <body data-ws-path="${escapeHtml(wsPath || '/')}">
     <div class="card">
       <h1>다운로드 이력</h1>
       <div class="toolbar">
@@ -496,6 +575,7 @@ function renderHistoryPage({
           <tr>
             <th>제목 / URL ID</th>
             <th>상태</th>
+            <th>진행률</th>
             <th>오류</th>
             <th>생성일</th>
             <th>업데이트</th>
@@ -637,7 +717,7 @@ function renderHistoryPage({
             });
 
             if (!response.ok) {
-              const data = await response.json().catch(() => ({ }));
+              const data = await response.json().catch(() => ({}));
               alert(data.error || '다운로드 요청에 실패했습니다.');
               return;
             }
@@ -649,6 +729,133 @@ function renderHistoryPage({
           }
         });
 
+        const escapeSelector = window.CSS?.escape
+          ? (value) => window.CSS.escape(value)
+          : (value) => String(value).replace(/[\s#:;.]/g, '_');
+
+        function updateRowState(row, state) {
+          if (!row || !state) {
+            return;
+          }
+
+          if (typeof state.title === 'string' && state.title.trim()) {
+            const titleElement = row.querySelector('.title-text');
+            if (titleElement) {
+              titleElement.textContent = state.title.trim();
+              titleElement.title = state.title.trim();
+            }
+          }
+
+          if (typeof state.url === 'string' && state.url) {
+            row.dataset.sourceUrl = state.url;
+            const urlContainer = row.querySelector('.title-url');
+            if (urlContainer) {
+              const safeUrl = state.url;
+              urlContainer.innerHTML = `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
+              urlContainer.title = safeUrl;
+            }
+          }
+
+          if (typeof state.status === 'string') {
+            row.dataset.status = state.status;
+            const badge = row.querySelector('.status .status-badge');
+            if (badge) {
+              const nextStatus = state.status.toLowerCase();
+              badge.textContent = nextStatus;
+              badge.className = `status-badge status-${nextStatus}`;
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(state, 'error')) {
+            const errorCell = row.querySelector('.error');
+            if (errorCell) {
+              const message = state.error ? String(state.error) : '';
+              errorCell.innerHTML = message
+                ? `<span title="${message}">${message}</span>`
+                : '<span class="muted">-</span>';
+            }
+          }
+
+          if (Object.prototype.hasOwnProperty.call(state, 'percent')) {
+            const wrapper = row.querySelector('.progress .progress-wrapper');
+            const fill = row.querySelector('.progress .progress-fill');
+            const valueLabel = row.querySelector('.progress .progress-value');
+            if (wrapper && fill && valueLabel) {
+              const numeric = Number.isFinite(state.percent)
+                ? Math.max(0, Math.min(100, state.percent))
+                : 0;
+              const rounded = Math.round(numeric);
+              fill.style.width = `${rounded}%`;
+              wrapper.setAttribute('aria-valuenow', String(rounded));
+              valueLabel.textContent = `${rounded}%`;
+            }
+          }
+
+          const stopButton = row.querySelector('.stop-button');
+          const resumeButton = row.querySelector('.resume-button');
+          const isActive = state.status === 'downloading' || state.status === 'queued';
+          if (stopButton) {
+            stopButton.disabled = !isActive;
+          }
+          if (resumeButton) {
+            resumeButton.disabled = isActive;
+          }
+        }
+
+        function handleDownloadState(state) {
+          if (!state || !state.urlId) {
+            return;
+          }
+
+          const row = document.querySelector(`tr[data-url-id="${escapeSelector(state.urlId)}"]`);
+          if (!row) {
+            return;
+          }
+
+          updateRowState(row, state);
+        }
+
+        function openWebSocket() {
+          const body = document.body;
+          const wsPath = body ? body.dataset.wsPath || '/' : '/';
+          const normalisedPath = wsPath.startsWith('/') ? wsPath : `/${wsPath}`;
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${protocol}//${window.location.host}${normalisedPath}`;
+
+          let socket;
+          try {
+            socket = new WebSocket(wsUrl);
+          } catch (error) {
+            console.error('웹소켓 연결 실패', error);
+            return null;
+          }
+
+          socket.addEventListener('message', (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data?.type === 'download' && data.payload) {
+                handleDownloadState(data.payload);
+              } else if (data?.type === 'download-finished' && data.payload) {
+                handleDownloadState({ ...data.payload, percent: 100 });
+              }
+            } catch (error) {
+              console.error('웹소켓 메시지 파싱 실패', error);
+            }
+          });
+
+          socket.addEventListener('close', () => {
+            setTimeout(openWebSocket, 2000);
+          });
+
+          socket.addEventListener('error', () => {
+            socket.close();
+          });
+
+          return socket;
+        }
+
+        openWebSocket();
+
         document.querySelectorAll('.delete-button').forEach((button) => {
           button.addEventListener('click', async () => {
             const urlId = button.dataset.urlId;
@@ -659,14 +866,84 @@ function renderHistoryPage({
             }
 
             try {
-                const response = await fetch(\`/history/\${encodeURIComponent(urlId)}\`, { method: 'DELETE' });              if (!response.ok) {
-                const data = await response.json().catch(() => ({ }));
+              const response = await fetch(`/history/${encodeURIComponent(urlId)}`, { method: 'DELETE' });
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
                 alert(data.error || '삭제에 실패했습니다.');
                 return;
               }
               window.location.reload();
             } catch (error) {
               alert('삭제 중 오류가 발생했습니다.');
+            }
+          });
+        });
+
+        document.querySelectorAll('.stop-button').forEach((button) => {
+          button.addEventListener('click', async () => {
+            if (button.disabled) {
+              return;
+            }
+            const urlId = button.dataset.urlId;
+            if (!urlId) return;
+
+            button.disabled = true;
+            try {
+              const response = await fetch('/stop_download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urlId })
+              });
+
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                alert(data.error || '다운로드 정지에 실패했습니다.');
+                button.disabled = false;
+                return;
+              }
+
+              const state = await response.json().catch(() => null);
+              if (state) {
+                handleDownloadState(state);
+              }
+            } catch (error) {
+              alert('다운로드 정지 중 오류가 발생했습니다.');
+              button.disabled = false;
+            }
+          });
+        });
+
+        document.querySelectorAll('.resume-button').forEach((button) => {
+          button.addEventListener('click', async () => {
+            if (button.disabled) {
+              return;
+            }
+
+            const urlId = button.dataset.urlId;
+            if (!urlId) return;
+
+            button.disabled = true;
+            try {
+              const response = await fetch('/restart_download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urlId })
+              });
+
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                alert(data.error || '다운로드 재시작에 실패했습니다.');
+                button.disabled = false;
+                return;
+              }
+
+              const state = await response.json().catch(() => null);
+              if (state) {
+                handleDownloadState(state);
+              }
+            } catch (error) {
+              alert('다운로드 재시작 중 오류가 발생했습니다.');
+              button.disabled = false;
             }
           });
         });
@@ -678,16 +955,12 @@ function renderHistoryPage({
             }
             const urlId = button.dataset.urlId;
             if (!urlId) return;
-            // Todo 브라우저로 다운로드 할 수 있게 처리.
-            window.location.href = \`/history/\${encodeURIComponent(urlId)}/file\`;
+            window.location.href = `/history/${encodeURIComponent(urlId)}/file`;
           });
         });
       })();
     </script>
+
   </body>
   </html>`;
 }
-
-module.exports = {
-  renderHistoryPage
-};

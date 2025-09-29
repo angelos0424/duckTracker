@@ -313,7 +313,6 @@ export class IpcManager {
         
         const needsServerRestart =
           currentSettings.httpPort !== settings.httpPort ||
-          currentSettings.wsPort !== settings.wsPort ||
           currentSettings.maxConcurrentDownloads !== settings.maxConcurrentDownloads ||
           currentSettings.downloadPath !== settings.downloadPath;
 
@@ -324,7 +323,6 @@ export class IpcManager {
         if (needsServerRestart) {
             const config: ServerConfig = {
                 port: settings.httpPort,
-                wsPort: settings.wsPort,
                 corsOrigins: ['chrome-extension://*', 'moz-extension://*', 'http://localhost:*'],
                 maxConcurrentDownloads: settings.maxConcurrentDownloads,
                 outputPath: settings.downloadPath,
@@ -360,7 +358,6 @@ export class IpcManager {
         
         const config: ServerConfig = {
             port: defaultSettings.httpPort,
-            wsPort: defaultSettings.wsPort,
             corsOrigins: ['chrome-extension://*', 'moz-extension://*', 'http://localhost:*'],
             maxConcurrentDownloads: defaultSettings.maxConcurrentDownloads,
             outputPath: defaultSettings.downloadPath,
@@ -431,7 +428,6 @@ export class IpcManager {
         const settings = await this.settingsManager.load();
         const config: ServerConfig = {
             port: settings.httpPort,
-            wsPort: settings.wsPort,
             corsOrigins: ['chrome-extension://*', 'moz-extension://*', 'http://localhost:*'],
             maxConcurrentDownloads: settings.maxConcurrentDownloads,
             outputPath: settings.downloadPath,

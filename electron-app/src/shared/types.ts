@@ -23,7 +23,6 @@ export interface AppSettings {
   outputTemplate: string;
   maxConcurrentDownloads: number;
   httpPort: number;
-  wsPort: number;
   minimizeToTray: boolean;
   showNotifications: boolean;
 }
@@ -31,8 +30,7 @@ export interface AppSettings {
 export interface ServerStatus {
   running: boolean;
   httpPort: number | undefined;
-  wsPort: number | undefined;
-  error?: string;
+  error?: string | undefined;
 }
 
 export interface ValidationResult {
@@ -95,7 +93,6 @@ export interface VideoFormat {
 
 export interface ServerConfig {
   port: number;
-  wsPort: number;
   corsOrigins: string[];
   maxConcurrentDownloads: number;
   outputPath: string;
