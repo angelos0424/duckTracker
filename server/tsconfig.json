@@ -10,7 +10,8 @@
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "declaration": true
+    "declaration": true,
+    "types": ["node", "react"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["dist"]

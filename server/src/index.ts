@@ -16,7 +16,7 @@ import {
     deleteDownloads,
     type SearchDownloadsResult
 } from './database';
-import { renderHistoryPage } from './history-page';
+import { renderHistoryPageToHtml } from './history-page';
 
 const config: ServerConfig = loadConfig();
 initDatabase(config.dbPath);
@@ -475,7 +475,7 @@ function handleHistory(_req: IncomingMessage, res: ServerResponse, query: url.Pa
         result = searchDownloads({ searchTerm, page, pageSize });
     }
 
-    const html = renderHistoryPage({
+    const html = renderHistoryPageToHtml({
         items: result.items,
         total: result.total,
         page,

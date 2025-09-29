@@ -1,5 +1,4 @@
 import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { URLSearchParams } from 'node:url';
 import type { DownloadRecordRow } from './database';
 
@@ -887,11 +886,20 @@ const HistoryTable: React.FC<{ items: DownloadRecordRow[] }> = ({ items }) => (
   </table>
 );
 
-const Pagination: React.FC<{ page: number; totalPages: number; baseParams: URLSearchParams }> = ({
-  page,
-  totalPages,
-  baseParams
-}) => {
+interface PaginationProps {
+  page: number;
+  totalPages: number;
+  pageSize: number;
+  searchTerm?: string;
+}
+
+const Pagination: React.FC<PaginationProps> = ({ page, totalPages, pageSize, searchTerm }) => {
+  const baseParams = new URLSearchParams();
+  if (searchTerm) {
+    baseParams.set('search', searchTerm);
+  }
+  baseParams.set('pageSize', String(pageSize));
+
   const prevLink = page > 1 ? buildPageLink(baseParams, { page: page - 1 }) : null;
   const nextLink = page < totalPages ? buildPageLink(baseParams, { page: page + 1 }) : null;
 
@@ -937,28 +945,28 @@ const SearchForm: React.FC<{ searchTerm?: string }> = ({ searchTerm }) => (
   </form>
 );
 
-interface HistoryPageProps {
+export interface HistoryPageProps {
   items: DownloadRecordRow[];
   total: number;
   page: number;
+  pageSize: number;
   totalPages: number;
   showingFrom: number;
   showingTo: number;
   searchTerm?: string;
   wsPath: string;
-  baseParams: URLSearchParams;
 }
 
-const HistoryPageComponent: React.FC<HistoryPageProps> = ({
+export const HistoryPage: React.FC<HistoryPageProps> = ({
   items,
   total,
   page,
+  pageSize,
   totalPages,
   showingFrom,
   showingTo,
   searchTerm,
-  wsPath,
-  baseParams
+  wsPath
 }) => (
   <html lang="ko">
     <head>
@@ -986,7 +994,7 @@ const HistoryPageComponent: React.FC<HistoryPageProps> = ({
           <span>
             총 {total.toLocaleString()}건 중 {showingFrom.toLocaleString()}-{showingTo.toLocaleString()} 표시
           </span>
-          <Pagination page={page} totalPages={totalPages} baseParams={baseParams} />
+          <Pagination page={page} totalPages={totalPages} pageSize={pageSize} searchTerm={searchTerm} />
         </div>
       </div>
       <div className="dialog-backdrop" data-dialog="add-download" hidden>
@@ -1016,46 +1024,3 @@ const HistoryPageComponent: React.FC<HistoryPageProps> = ({
     </body>
   </html>
 );
-
-interface RenderHistoryPageOptions {
-  items: DownloadRecordRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  searchTerm?: string;
-  wsPath?: string;
-}
-
-export function renderHistoryPage({
-  items,
-  total,
-  page,
-  pageSize,
-  searchTerm,
-  wsPath = '/'
-}: RenderHistoryPageOptions): string {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const showingFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const showingTo = Math.min(page * pageSize, total);
-  const baseParams = new URLSearchParams();
-  if (searchTerm) {
-    baseParams.set('search', searchTerm);
-  }
-  baseParams.set('pageSize', String(pageSize));
-
-  const markup = renderToStaticMarkup(
-    <HistoryPageComponent
-      items={items}
-      total={total}
-      page={page}
-      totalPages={totalPages}
-      showingFrom={showingFrom}
-      showingTo={showingTo}
-      searchTerm={searchTerm}
-      wsPath={wsPath}
-      baseParams={baseParams}
-    />
-  );
-
-  return '<!DOCTYPE html>' + markup;
-}
