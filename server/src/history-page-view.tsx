@@ -2,533 +2,6 @@ import React from 'react';
 import { URLSearchParams } from 'node:url';
 import type { DownloadRecordRow } from './database';
 
-interface HistoryClientConfig {
-  wsPath: string;
-}
-
-function historyClient(config: HistoryClientConfig): void {
-  const backdrop = document.querySelector('[data-dialog="add-download"]') as HTMLElement | null;
-  const form = backdrop ? (backdrop.querySelector('form[data-form="add-download"]') as HTMLFormElement | null) : null;
-  const urlInput = form ? (form.querySelector('input[name="url"]') as HTMLInputElement | null) : null;
-  const errorMessage = form ? (form.querySelector('[data-error-message]') as HTMLElement | null) : null;
-
-  function openDialog(): void {
-    if (!backdrop) return;
-    backdrop.hidden = false;
-    requestAnimationFrame(() => {
-      backdrop.classList.add('visible');
-      if (urlInput) {
-        urlInput.value = '';
-        urlInput.focus();
-      }
-      if (errorMessage) {
-        errorMessage.hidden = true;
-      }
-    });
-  }
-
-  function closeDialog(): void {
-    if (!backdrop) return;
-    backdrop.classList.remove('visible');
-    window.setTimeout(() => {
-      backdrop.hidden = true;
-    }, 150);
-  }
-
-  function validateUrl(value: string): boolean {
-    try {
-      const parsed = new URL(value);
-      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  function deriveUrlId(value: string): string {
-    try {
-      const parsed = new URL(value);
-      if (parsed.searchParams.has('list')) {
-        return parsed.searchParams.get('list') ?? '';
-      }
-      const pathname = parsed.pathname || '';
-      const shortsMatch = pathname.match(/\/shorts\/([a-zA-Z0-9_-]{11})/u);
-      if (shortsMatch && shortsMatch[1]) {
-        return shortsMatch[1];
-      }
-      const watchId = parsed.searchParams.get('v');
-      if (watchId) {
-        return watchId;
-      }
-      if (parsed.hostname === 'youtu.be') {
-        const [, id] = pathname.split('/');
-        if (id) {
-          return id;
-        }
-      }
-      return parsed.href;
-    } catch (_error) {
-      return '';
-    }
-  }
-
-  const openButton = document.querySelector('[data-action="open-add-dialog"]');
-  openButton?.addEventListener('click', openDialog);
-
-  const refreshButton = document.querySelector('[data-action="refresh"]');
-  refreshButton?.addEventListener('click', () => {
-    window.location.reload();
-  });
-
-  backdrop?.addEventListener('click', (event) => {
-    if (event.target === backdrop) {
-      closeDialog();
-    }
-  });
-
-  const cancelButton = backdrop ? backdrop.querySelector('[data-action="cancel-dialog"]') : null;
-  cancelButton?.addEventListener('click', closeDialog);
-
-  form?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (!urlInput) return;
-    const value = urlInput.value.trim();
-    if (!validateUrl(value)) {
-      if (errorMessage) {
-        errorMessage.hidden = false;
-      }
-      urlInput.focus();
-      return;
-    }
-
-    if (errorMessage) {
-      errorMessage.hidden = true;
-    }
-
-    try {
-      const response = await fetch('/history/request-download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: value, urlId: deriveUrlId(value) })
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        window.alert(data.error || '다운로드 요청에 실패했습니다.');
-        return;
-      }
-
-      closeDialog();
-      window.location.reload();
-    } catch (_error) {
-      window.alert('다운로드 요청 중 오류가 발생했습니다.');
-    }
-  });
-
-  const escapeSelector: (value: string) => string = typeof window.CSS !== 'undefined' && typeof window.CSS.escape === 'function'
-    ? (value: string) => window.CSS.escape(value)
-    : (value: string) => String(value).replace(/[\s#:;.]/g, '_');
-
-  function updateRowState(row: Element | null, state: Record<string, unknown>): void {
-    if (!row || !state) {
-      return;
-    }
-
-    if (typeof state.title === 'string' && state.title.trim()) {
-      const titleElement = row.querySelector('.title-text') as HTMLElement | null;
-      if (titleElement) {
-        const trimmed = state.title.trim();
-        titleElement.textContent = trimmed;
-        titleElement.title = trimmed;
-      }
-    }
-
-    if (typeof state.url === 'string' && state.url) {
-      (row as HTMLElement).dataset.sourceUrl = state.url;
-      const urlContainer = row.querySelector('.title-url') as HTMLElement | null;
-      if (urlContainer) {
-        const safeUrl = state.url;
-        urlContainer.innerHTML = `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
-        urlContainer.title = safeUrl;
-      }
-    }
-
-    if (typeof state.status === 'string') {
-      (row as HTMLElement).dataset.status = state.status;
-      const badge = row.querySelector('.status .status-badge') as HTMLElement | null;
-      if (badge) {
-        const nextStatus = state.status.toLowerCase();
-        badge.textContent = nextStatus;
-        badge.className = `status-badge status-${nextStatus}`;
-      }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(state, 'filePath')) {
-      const filePathValue = typeof state.filePath === 'string' ? state.filePath : '';
-      (row as HTMLElement).dataset.filePath = filePathValue;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(state, 'error')) {
-      const errorCell = row.querySelector('.error') as HTMLElement | null;
-      if (errorCell) {
-        const message = state.error ? String(state.error) : '';
-        errorCell.innerHTML = message
-          ? `<span title="${message}">${message}</span>`
-          : '<span class="muted">-</span>';
-      }
-    }
-
-    if (Object.prototype.hasOwnProperty.call(state, 'percent')) {
-      const wrapper = row.querySelector('.progress .progress-wrapper') as HTMLElement | null;
-      const fill = row.querySelector('.progress .progress-fill') as HTMLElement | null;
-      const valueLabel = row.querySelector('.progress .progress-value') as HTMLElement | null;
-      if (wrapper && fill && valueLabel) {
-        const numeric = Number.isFinite(state.percent as number)
-          ? Math.max(0, Math.min(100, Number(state.percent)))
-          : 0;
-        const rounded = Math.round(numeric);
-        fill.style.width = `${rounded}%`;
-        wrapper.setAttribute('aria-valuenow', String(rounded));
-        valueLabel.textContent = `${rounded}%`;
-      }
-    }
-
-    const stopButton = row.querySelector('.stop-button') as HTMLButtonElement | null;
-    const resumeButton = row.querySelector('.resume-button') as HTMLButtonElement | null;
-    const isActive = state.status === 'downloading' || state.status === 'queued';
-    if (stopButton) {
-      stopButton.disabled = !isActive;
-    }
-    if (resumeButton) {
-      resumeButton.disabled = isActive;
-    }
-
-    const downloadButton = row.querySelector('.download-button') as HTMLButtonElement | null;
-    const removeFileButton = row.querySelector('.remove-file-button') as HTMLButtonElement | null;
-    const currentStatus = typeof state.status === 'string'
-      ? state.status
-      : (row as HTMLElement).dataset.status || '';
-    const currentFilePath = Object.prototype.hasOwnProperty.call(state, 'filePath')
-      ? typeof state.filePath === 'string' ? state.filePath : ''
-      : (row as HTMLElement).dataset.filePath || '';
-    const hasFile = currentFilePath.trim().length > 0;
-    const canDownload = hasFile && currentStatus === 'completed';
-
-    if (downloadButton) {
-      downloadButton.disabled = !canDownload;
-      const title = canDownload ? '파일 다운로드' : '완료된 항목만 다운로드할 수 있습니다.';
-      downloadButton.title = title;
-      downloadButton.setAttribute('aria-label', title);
-    }
-
-    if (removeFileButton) {
-      removeFileButton.disabled = !hasFile;
-      removeFileButton.title = hasFile ? '파일만 삭제' : '삭제할 파일이 없습니다.';
-    }
-  }
-
-  function handleDownloadState(state: Record<string, unknown> & { urlId?: string }): void {
-    if (!state || !state.urlId) {
-      return;
-    }
-
-    const row = document.querySelector(`tr[data-url-id="${escapeSelector(state.urlId)}"]`);
-    if (!row) {
-      return;
-    }
-
-    updateRowState(row, state);
-  }
-
-  function openWebSocket(): WebSocket | null {
-    const normalisedPath = config.wsPath.startsWith('/') ? config.wsPath : `/${config.wsPath}`;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}${normalisedPath}`;
-
-    let socket: WebSocket;
-    try {
-      socket = new WebSocket(wsUrl);
-    } catch (error) {
-      console.error('웹소켓 연결 실패', error);
-      return null;
-    }
-
-    socket.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(String(event.data)) as { type?: string; payload?: Record<string, unknown> };
-        if (data?.type === 'download' && data.payload) {
-          handleDownloadState(data.payload);
-        } else if (data?.type === 'download-finished' && data.payload) {
-          handleDownloadState({ ...data.payload, percent: 100 });
-        }
-      } catch (messageError) {
-        console.error('웹소켓 메시지 파싱 실패', messageError);
-      }
-    });
-
-    socket.addEventListener('close', () => {
-      window.setTimeout(openWebSocket, 2000);
-    });
-
-    socket.addEventListener('error', () => {
-      socket.close();
-    });
-
-    return socket;
-  }
-
-  openWebSocket();
-
-  document.querySelectorAll<HTMLButtonElement>('.delete-button').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const urlId = button.dataset.urlId;
-      if (!urlId) return;
-      const confirmed = window.confirm('정말로 이 다운로드 이력을 삭제하시겠습니까? 파일도 함께 삭제됩니다.');
-      if (!confirmed) {
-        return;
-      }
-
-      try {
-        const response = await fetch(`/history/${encodeURIComponent(urlId)}`, { method: 'DELETE' });
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { error?: string };
-          window.alert(data.error || '삭제에 실패했습니다.');
-          return;
-        }
-        window.location.reload();
-      } catch (_error) {
-        window.alert('삭제 중 오류가 발생했습니다.');
-      }
-    });
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('.stop-button').forEach((button) => {
-    button.addEventListener('click', async () => {
-      if (button.disabled) {
-        return;
-      }
-      const urlId = button.dataset.urlId;
-      if (!urlId) return;
-
-      button.disabled = true;
-      try {
-        const response = await fetch('/stop_download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urlId })
-        });
-
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { error?: string };
-          window.alert(data.error || '다운로드 정지에 실패했습니다.');
-          button.disabled = false;
-          return;
-        }
-
-        const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-        if (state) {
-          handleDownloadState(state);
-        }
-      } catch (_error) {
-        window.alert('다운로드 정지 중 오류가 발생했습니다.');
-        button.disabled = false;
-      }
-    });
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('.resume-button').forEach((button) => {
-    button.addEventListener('click', async () => {
-      if (button.disabled) {
-        return;
-      }
-
-      const urlId = button.dataset.urlId;
-      if (!urlId) return;
-
-      button.disabled = true;
-      try {
-        const response = await fetch('/restart_download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urlId })
-        });
-
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { error?: string };
-          window.alert(data.error || '다운로드 재시작에 실패했습니다.');
-          button.disabled = false;
-          return;
-        }
-
-        const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-        if (state) {
-          handleDownloadState(state);
-        }
-      } catch (_error) {
-        window.alert('다운로드 재시작 중 오류가 발생했습니다.');
-        button.disabled = false;
-      }
-    });
-  });
-
-  function extractFilename(response: Response, fallback: string): string {
-    const disposition = response.headers.get('Content-Disposition');
-    if (!disposition) {
-      return fallback;
-    }
-
-    const encodedMatch = /filename\*=UTF-8''([^;]+)/iu.exec(disposition);
-    const quotedMatch = /filename="?([^";]+)"?/iu.exec(disposition);
-    const raw = encodedMatch?.[1] ?? quotedMatch?.[1];
-    if (!raw) {
-      return fallback;
-    }
-
-    try {
-      return decodeURIComponent(raw.trim());
-    } catch (_error) {
-      return raw.trim();
-    }
-  }
-
-  async function removeFileAfterDownload(urlId: string): Promise<void> {
-    try {
-      const response = await fetch(`/history/${encodeURIComponent(urlId)}/file`, { method: 'DELETE' });
-
-      if (!response.ok) {
-        if (response.status !== 404) {
-          const data = (await response.json().catch(() => ({}))) as { error?: string };
-          window.alert(data.error || '다운로드 후 파일 삭제에 실패했습니다.');
-        }
-        return;
-      }
-
-      const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-      if (state) {
-        handleDownloadState(state);
-      }
-    } catch (_error) {
-      window.alert('다운로드 후 파일 삭제 중 오류가 발생했습니다.');
-    }
-  }
-
-  document.querySelectorAll<HTMLButtonElement>('.download-button').forEach((button) => {
-    button.addEventListener('click', async () => {
-      if (button.disabled) {
-        return;
-      }
-      const urlId = button.dataset.urlId;
-      if (!urlId) return;
-
-      button.disabled = true;
-      try {
-        const response = await fetch(`/history/${encodeURIComponent(urlId)}/file`, { method: 'GET' });
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { error?: string };
-          window.alert(data.error || '파일을 다운로드할 수 없습니다.');
-          return;
-        }
-
-        const blob = await response.blob();
-        const filename = extractFilename(response, `${urlId}.bin`);
-        const objectUrl = URL.createObjectURL(blob);
-
-        const revokeObjectUrl = (): void => {
-          try {
-            URL.revokeObjectURL(objectUrl);
-          } catch (_revokeError) {
-            // Ignore errors during cleanup
-          }
-        };
-
-        const revokeTimeout = window.setTimeout(revokeObjectUrl, 120_000);
-        window.addEventListener(
-          'pagehide',
-          () => {
-            window.clearTimeout(revokeTimeout);
-            revokeObjectUrl();
-          },
-          { once: true }
-        );
-
-        const isIosDevice = /iP(ad|hone|od)/iu.test(window.navigator.userAgent)
-          || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
-        const supportsDownloadAttribute = 'download' in HTMLAnchorElement.prototype && !isIosDevice;
-
-        if (supportsDownloadAttribute) {
-          const anchor = document.createElement('a');
-          anchor.href = objectUrl;
-          anchor.download = filename;
-          anchor.rel = 'noopener';
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          await removeFileAfterDownload(urlId);
-        } else {
-          const openedWindow = window.open(objectUrl, '_blank', 'noopener');
-          if (openedWindow) {
-            await removeFileAfterDownload(urlId);
-          } else {
-            await removeFileAfterDownload(urlId);
-            window.location.href = objectUrl; // cleanup 완료 후 이동
-          }
-        }
-      } catch (_error) {
-        window.alert('파일 다운로드 중 오류가 발생했습니다.');
-      } finally {
-        button.disabled = false;
-      }
-    });
-  });
-
-  document.querySelectorAll<HTMLButtonElement>('.remove-file-button').forEach((button) => {
-    button.addEventListener('click', async () => {
-      if (button.disabled) {
-        return;
-      }
-      const urlId = button.dataset.urlId;
-      if (!urlId) return;
-
-      const confirmed = window.confirm('이력은 유지하고 서버에 저장된 파일만 삭제합니다. 계속하시겠습니까?');
-      if (!confirmed) {
-        return;
-      }
-
-      button.disabled = true;
-      try {
-        const response = await fetch(`/history/${encodeURIComponent(urlId)}/file`, {
-          method: 'DELETE'
-        });
-
-        if (!response.ok) {
-          const data = (await response.json().catch(() => ({}))) as { error?: string };
-          window.alert(data.error || '파일 삭제에 실패했습니다.');
-          button.disabled = false;
-          return;
-        }
-
-        const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-        if (state) {
-          handleDownloadState(state);
-        } else {
-          button.disabled = false;
-        }
-      } catch (_error) {
-        window.alert('파일 삭제 중 오류가 발생했습니다.');
-        button.disabled = false;
-      }
-    });
-  });
-}
-
-function serializeHistoryClient(config: HistoryClientConfig): string {
-  return `(${historyClient.toString()})(${JSON.stringify(config)});`;
-}
-
-
-
-
-
-
 function buildPageLink(baseParams: URLSearchParams, overrides: Record<string, string | number | null | undefined>): string {
   const params = new URLSearchParams(baseParams);
   Object.entries(overrides).forEach(([key, value]) => {
@@ -549,6 +22,13 @@ function formatProgress(value: unknown): number {
   return Math.min(100, Math.max(0, Math.round(value as number)));
 }
 
+function getProgressFromItem(item: DownloadRecordRow & { percent?: number | null }): number {
+  if (Number.isFinite(item.percent)) {
+    return formatProgress(item.percent as number);
+  }
+  return item.status === 'completed' ? 100 : 0;
+}
+
 const ProgressCell: React.FC<{ progress: number }> = ({ progress }) => (
   <div className="progress-wrapper" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
     <div className="progress-track">
@@ -558,16 +38,38 @@ const ProgressCell: React.FC<{ progress: number }> = ({ progress }) => (
   </div>
 );
 
-const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; downloadDisabled: boolean; urlId: string }> = ({
+interface ActionsCellProps {
+  item: DownloadRecordRow;
+  downloadTitle: string;
+  downloadDisabled: boolean;
+  urlId: string;
+  isDownloadPending?: boolean;
+  isStopPending?: boolean;
+  isResumePending?: boolean;
+  isRemovePending?: boolean;
+  isDeletePending?: boolean;
+}
+
+const ActionsCell: React.FC<ActionsCellProps> = ({
   item,
   downloadTitle,
   downloadDisabled,
-  urlId
+  urlId,
+  isDownloadPending,
+  isStopPending,
+  isResumePending,
+  isRemovePending,
+  isDeletePending
 }) => {
   const status = item.status || '';
   const isActive = status === 'downloading' || status === 'queued';
-  const canDownload = !downloadDisabled;
   const fileExists = Boolean(item.filePath);
+  const downloadBusy = Boolean(isDownloadPending);
+  const stopBusy = Boolean(isStopPending);
+  const resumeBusy = Boolean(isResumePending);
+  const removeBusy = Boolean(isRemovePending);
+  const deleteBusy = Boolean(isDeletePending);
+  const canDownload = !downloadDisabled && !downloadBusy;
 
   return (
     <>
@@ -576,7 +78,7 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
         data-url-id={urlId}
         title="다운로드 정지"
         aria-label="다운로드 정지"
-        disabled={!isActive}
+        disabled={!isActive || stopBusy}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M8 5h3v14H8zm5 0h3v14h-3z" />
@@ -587,7 +89,7 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
         data-url-id={urlId}
         title="다운로드 재시작"
         aria-label="다운로드 재시작"
-        disabled={isActive}
+        disabled={isActive || resumeBusy}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M8 5v14l11-7z" />
@@ -599,7 +101,10 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
         title={downloadTitle}
         aria-label={downloadTitle}
         disabled={!canDownload}
+        data-loading={downloadBusy ? 'true' : undefined}
+        aria-busy={downloadBusy ? 'true' : undefined}
       >
+        <span className="spinner" aria-hidden="true" />
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 20h14v-2H5v2zm7-18l-5.5 6h3.5v6h4v-6H17L12 2z" />
         </svg>
@@ -609,14 +114,20 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
         data-url-id={urlId}
         title={fileExists ? '파일만 삭제' : '삭제할 파일이 없습니다.'}
         aria-label="파일 삭제"
-        disabled={!fileExists}
+        disabled={!fileExists || removeBusy}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
           <path d="M10 11h1.5v6H10zm2.5 0H14v6h-1.5z" />
         </svg>
       </button>
-      <button className="icon-button delete-button" data-url-id={urlId} title="이력 삭제" aria-label="이력 삭제">
+      <button
+        className="icon-button delete-button"
+        data-url-id={urlId}
+        title="이력 삭제"
+        aria-label="이력 삭제"
+        disabled={deleteBusy}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z" />
         </svg>
@@ -625,7 +136,7 @@ const ActionsCell: React.FC<{ item: DownloadRecordRow; downloadTitle: string; do
   );
 };
 
-const TableRow: React.FC<{ item: DownloadRecordRow }> = ({ item }) => {
+const TableRow: React.FC<{ item: DownloadRecordRow & { percent?: number | null } }> = ({ item }) => {
   const title = item.title?.trim() || '';
   const urlId = item.urlId || '';
   const status = item.status || 'unknown';
@@ -636,7 +147,7 @@ const TableRow: React.FC<{ item: DownloadRecordRow }> = ({ item }) => {
   const sourceUrl = item.url || '';
   const urlDisplay = sourceUrl || urlId || '';
   const statusClass = `status-badge status-${status}`;
-  const progressValue = item.status === 'completed' ? 100 : 0;
+  const progressValue = getProgressFromItem(item);
   const downloadDisabled = !fileAvailable || status !== 'completed';
   const downloadTitle = downloadDisabled ? '완료된 항목만 다운로드할 수 있습니다.' : '파일 다운로드';
 
@@ -681,7 +192,7 @@ const TableRow: React.FC<{ item: DownloadRecordRow }> = ({ item }) => {
   );
 };
 
-const HistoryTable: React.FC<{ items: DownloadRecordRow[] }> = ({ items }) => (
+const HistoryTable: React.FC<{ items: (DownloadRecordRow & { percent?: number | null })[] }> = ({ items }) => (
   <table role="grid">
     <thead>
       <tr>
@@ -765,8 +276,70 @@ const SearchForm: React.FC<{ searchTerm?: string }> = ({ searchTerm }) => (
   </form>
 );
 
+const HistoryAppShell: React.FC<HistoryPageProps> = ({
+  items,
+  total,
+  page,
+  pageSize,
+  totalPages,
+  showingFrom,
+  showingTo,
+  searchTerm
+}) => (
+  <>
+    <div className="card">
+      <h1>다운로드 이력</h1>
+      <div className="toolbar">
+        <SearchForm searchTerm={searchTerm} />
+        <div className="toolbar-actions">
+          <button type="button" className="secondary" data-action="refresh">
+            새로고침
+          </button>
+          <button type="button" className="primary" data-action="open-add-dialog">
+            다운로드 추가
+          </button>
+        </div>
+      </div>
+      <HistoryTable items={items} />
+      <div className="summary">
+        <span>
+          총 {total.toLocaleString()}건 중 {showingFrom.toLocaleString()}-{showingTo.toLocaleString()} 표시
+        </span>
+        <Pagination page={page} totalPages={totalPages} pageSize={pageSize} searchTerm={searchTerm} />
+      </div>
+    </div>
+    <AddDownloadDialog />
+  </>
+);
+
+const AddDownloadDialog: React.FC = () => (
+  <div className="dialog-backdrop" data-dialog="add-download" hidden>
+    <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-download-title">
+      <h2 id="add-download-title">다운로드 추가</h2>
+      <p>다운로드할 영상의 URL을 입력하세요.</p>
+      <form data-form="add-download">
+        <label htmlFor="download-url" className="visually-hidden">
+          다운로드 URL
+        </label>
+        <input type="url" id="download-url" name="url" placeholder="https://" required />
+        <p className="form-helper" data-error-message hidden>
+          유효한 URL을 입력해주세요.
+        </p>
+        <div className="dialog-buttons">
+          <button type="button" className="secondary" data-action="cancel-dialog">
+            취소
+          </button>
+          <button type="submit" className="primary">
+            다운로드 요청
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+);
+
 export interface HistoryPageProps {
-  items: DownloadRecordRow[];
+  items: (DownloadRecordRow & { percent?: number | null })[];
   total: number;
   page: number;
   pageSize: number;
@@ -777,17 +350,11 @@ export interface HistoryPageProps {
   wsPath: string;
 }
 
-export const HistoryPage: React.FC<HistoryPageProps> = ({
-  items,
-  total,
-  page,
-  pageSize,
-  totalPages,
-  showingFrom,
-  showingTo,
-  searchTerm,
-  wsPath
-}) => (
+function escapeJsonForScript(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003C');
+}
+
+export const HistoryPage: React.FC<HistoryPageProps> = (props) => (
   <html lang="ko">
     <head>
       <meta charSet="UTF-8" />
@@ -795,52 +362,18 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       <title>다운로드 이력</title>
       <link rel="stylesheet" href="/history/assets/history-page.css" />
     </head>
-    <body data-ws-path={wsPath || '/'}>
-      <div className="card">
-        <h1>다운로드 이력</h1>
-        <div className="toolbar">
-          <SearchForm searchTerm={searchTerm} />
-          <div className="toolbar-actions">
-            <button type="button" className="secondary" data-action="refresh">
-              새로고침
-            </button>
-            <button type="button" className="primary" data-action="open-add-dialog">
-              다운로드 추가
-            </button>
-          </div>
-        </div>
-        <HistoryTable items={items} />
-        <div className="summary">
-          <span>
-            총 {total.toLocaleString()}건 중 {showingFrom.toLocaleString()}-{showingTo.toLocaleString()} 표시
-          </span>
-          <Pagination page={page} totalPages={totalPages} pageSize={pageSize} searchTerm={searchTerm} />
-        </div>
+    <body data-ws-path={props.wsPath || '/'}>
+      <div id="history-root">
+        <HistoryAppShell {...props} />
       </div>
-      <div className="dialog-backdrop" data-dialog="add-download" hidden>
-        <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-download-title">
-          <h2 id="add-download-title">다운로드 추가</h2>
-          <p>다운로드할 영상의 URL을 입력하세요.</p>
-          <form data-form="add-download">
-            <label htmlFor="download-url" className="visually-hidden">
-              다운로드 URL
-            </label>
-            <input type="url" id="download-url" name="url" placeholder="https://" required />
-            <p className="form-helper" data-error-message hidden>
-              유효한 URL을 입력해주세요.
-            </p>
-            <div className="dialog-buttons">
-              <button type="button" className="secondary" data-action="cancel-dialog">
-                취소
-              </button>
-              <button type="submit" className="primary">
-                다운로드 요청
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <script dangerouslySetInnerHTML={{ __html: serializeHistoryClient({ wsPath }) }} />
+      <script
+        id="history-props"
+        type="application/json"
+        dangerouslySetInnerHTML={{ __html: escapeJsonForScript(props) }}
+      />
+      <script src="/history/assets/react.production.min.js"></script>
+      <script src="/history/assets/react-dom.production.min.js"></script>
+      <script src="/history/assets/history-client.js"></script>
     </body>
   </html>
 );

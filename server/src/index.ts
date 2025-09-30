@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { loadConfig, ServerConfig } from './config';
 import { DownloadManager, DownloadSnapshot } from './download-manager';
 import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server';
-import { getHistoryPageCss } from './history-page-assets';
+import { getHistoryClientScript, getHistoryPageCss, getReactDomUmdScript, getReactUmdScript } from './history-page-assets';
 import {
     initDatabase,
     ensureUrlIds,
@@ -582,6 +582,36 @@ const server = http.createServer((req, res) => {
             'Cache-Control': 'public, max-age=300'
         });
         res.end(css);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/react.production.min.js') {
+        const script = getReactUmdScript();
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+        });
+        res.end(script);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/react-dom.production.min.js') {
+        const script = getReactDomUmdScript();
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+        });
+        res.end(script);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/history-client.js') {
+        const clientScript = getHistoryClientScript();
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=120'
+        });
+        res.end(clientScript);
         return;
     }
 
