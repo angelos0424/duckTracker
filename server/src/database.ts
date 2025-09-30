@@ -187,13 +187,18 @@ export function recordDownloadQueued(payload: DownloadPayload): void {
 export function recordDownloadCompleted(payload: DownloadCompletedPayload): void {
     const db = assertDb();
     const stmts = ensureStatements(db);
+    let newtitle = payload.filePath || '';
+    if (newtitle.length > 0) {
+      newtitle = newtitle.replace("/downloads/", "");
+    }
+
     stmts.setStatus.run({
         urlId: payload.urlId,
         status: 'completed',
         lastError: null
     });
     if (payload.filePath) {
-        stmts.setFilePath.run({ urlId: payload.urlId, filePath: payload.filePath });
+        stmts.setFilePath.run({ urlId: payload.urlId, filePath: newtitle ?? payload.filePath });
     }
 }
 

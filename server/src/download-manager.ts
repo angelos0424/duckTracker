@@ -339,6 +339,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             const destMarker = 'Destination:';
             if (line.includes(destMarker)) {
+              console.log(' find DESTINATION -- ', line);
                 const candidate = line.slice(line.indexOf(destMarker) + destMarker.length).trim();
                 const resolvedPath = this.resolveDownloadPath(candidate);
                 if (resolvedPath) {
@@ -346,6 +347,10 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                     captureResolvedTitle(this.deriveTitleFromPath(resolvedPath));
                     recordDownloadFilePath({ urlId: request.urlId, filePath: resolvedPath });
                 }
+            }
+
+            if (/[MERGER]/u.test(line)) {
+              console.log(' find MERGER -- ', line);
             }
 
             if (/has already been downloaded/u.test(line)) {

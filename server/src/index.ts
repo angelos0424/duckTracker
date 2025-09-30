@@ -443,6 +443,8 @@ async function handleHistoryFileDelete(_req: IncomingMessage, res: ServerRespons
                 console.error('[history] File removal failed', { urlId, filePath: resolved, error: err.message });
                 jsonResponse(res, 500, { error: '파일 삭제에 실패했습니다.' });
                 return;
+            } else {
+              console.error('[history] File not found', { urlId, filePath: resolved, error: err.message });
             }
         }
 
