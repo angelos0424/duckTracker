@@ -432,16 +432,50 @@ function historyClient(config: HistoryClientConfig): void {
         const filename = extractFilename(response, `${urlId}.bin`);
         const objectUrl = URL.createObjectURL(blob);
 
-        const anchor = document.createElement('a');
-        anchor.href = objectUrl;
-        anchor.download = filename;
-        anchor.rel = 'noopener';
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
+        const revokeObjectUrl = (): void => {
+          try {
+            URL.revokeObjectURL(objectUrl);
+          } catch (_revokeError) {
+            // Ignore errors during cleanup
+          }
+        };
 
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-        await removeFileAfterDownload(urlId);
+        const revokeTimeout = window.setTimeout(revokeObjectUrl, 120_000);
+        window.addEventListener(
+          'pagehide',
+          () => {
+            window.clearTimeout(revokeTimeout);
+            revokeObjectUrl();
+          },
+          { once: true }
+        );
+
+        const isIosDevice = /iP(ad|hone|od)/iu.test(window.navigator.userAgent)
+          || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
+        const supportsDownloadAttribute = 'download' in HTMLAnchorElement.prototype && !isIosDevice;
+
+        let navigatedAway = false;
+        if (supportsDownloadAttribute) {
+          const anchor = document.createElement('a');
+          anchor.href = objectUrl;
+          anchor.download = filename;
+          anchor.rel = 'noopener';
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+        } else {
+          const openedWindow = window.open(objectUrl, '_blank', 'noopener');
+          if (!openedWindow) {
+            navigatedAway = true;
+            window.location.href = objectUrl;
+          }
+        }
+
+        if (navigatedAway) {
+          void removeFileAfterDownload(urlId);
+        } else {
+          await removeFileAfterDownload(urlId);
+        }
       } catch (_error) {
         window.alert('파일 다운로드 중 오류가 발생했습니다.');
       } finally {
