@@ -350,10 +350,13 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             if (line.startsWith('[Merger]')) {
               let title = line.split('/')[2];
-              title = title.slice(0, title.length-1);
+              title = title.slice(0, title.length - 1);
+              const mergedPath = `/downloads/${title}`;
               captureResolvedTitle(title);
-              recordDownloadFilePath({ urlId: request.urlId, filePath: '/downloads/'+title });
-              emitFinished({ status: 'completed', percent: 100, filePath: '/downloads/'+title, title: title });
+              downloadEntry.filePath = mergedPath;
+              updateState({ status: 'completed', percent: 100, filePath: mergedPath });
+              recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: mergedPath });
+              emitFinished({ status: 'completed', percent: 100, filePath: mergedPath, title });
               this.finish(request.urlId);
             } else if (/has already been downloaded/u.test(line)) {
                 const inferredPath =
@@ -365,7 +368,9 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                         ext: 'mp4'
                     });
                 captureResolvedTitle(downloadEntry.resolvedTitle || this.deriveTitleFromPath(inferredPath));
-                recordDownloadFilePath({ urlId: request.urlId, filePath: inferredPath });
+                downloadEntry.filePath = inferredPath;
+                updateState({ status: 'completed', percent: 100, filePath: inferredPath });
+                recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: inferredPath });
                 emitFinished({ status: 'completed', percent: 100, filePath: inferredPath, title: downloadEntry.resolvedTitle });
                 this.finish(request.urlId);
             }
