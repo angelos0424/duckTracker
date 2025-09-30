@@ -107,7 +107,7 @@ function resolveWithinDownloadDir(filePath: string | null | undefined): string {
         return '';
     }
 
-    const trimmed = typeof filePath === 'string' ? filePath.trim() : '';
+    const trimmed = filePath.trim();
     if (!trimmed) {
         return '';
     }
@@ -296,6 +296,8 @@ async function handleHistoryDelete(_req: IncomingMessage, res: ServerResponse, u
                     return { urlId: deletedId, fileRemoved: false };
                 }
 
+                console.log('delete file', filePath);
+                console.log('delete urlId', deletedId);
                 const resolved = resolveWithinDownloadDir(filePath);
                 if (!resolved) {
                     return { urlId: deletedId, fileRemoved: false, reason: 'outside-download-dir' };
