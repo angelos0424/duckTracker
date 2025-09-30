@@ -339,7 +339,6 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             const destMarker = 'Destination:';
             if (line.includes(destMarker)) {
-              console.log(' find DESTINATION -- ', line);
                 const candidate = line.slice(line.indexOf(destMarker) + destMarker.length).trim();
                 const resolvedPath = this.resolveDownloadPath(candidate);
                 if (resolvedPath) {
@@ -350,12 +349,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             }
 
             if (line.startsWith('[Merger]')) {
-              // [Merger] Merging formats into "/downloads/[4K] 250923 프로미스나인 송하영 なんでもないや (아무것도 아니야) 직캠 @2025 fromis_9 WORLD TOUR [NOW TOMORROW.] IN JAPAN [U_-FOOgd5ls].webm"
-
               let title = line.split('/')[2];
-              console.log(' find MERGER -- ', title);
               title = title.slice(0, title.length-1);
-              console.log(' find MERGER2 -- ', title);
               captureResolvedTitle(title);
               recordDownloadFilePath({ urlId: request.urlId, filePath: '/downloads/'+title });
               emitFinished({ status: 'completed', percent: 100, filePath: '/downloads/'+title, title: title });
