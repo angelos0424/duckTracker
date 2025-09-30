@@ -349,7 +349,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                 }
             }
 
-            if (line.startsWith(' [Merger]')) {
+            if (line.startsWith('[Merger]')) {
               // [Merger] Merging formats into "/downloads/[4K] 250923 프로미스나인 송하영 なんでもないや (아무것도 아니야) 직캠 @2025 fromis_9 WORLD TOUR [NOW TOMORROW.] IN JAPAN [U_-FOOgd5ls].webm"
 
               let title = line.split('/')[2];
