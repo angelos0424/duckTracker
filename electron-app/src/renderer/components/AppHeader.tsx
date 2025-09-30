@@ -2,11 +2,10 @@ import * as React from 'react';
 
 interface AppHeaderProps {
     running: boolean;
-    port?: number;
-    error?: string;
-
+    port: number | undefined;
+    error: string | undefined;
     restartPending: boolean;
-    onRestart: () => void;
+    onRestart: () => Promise<void>;
 }
 
 const AppHeader: React.FC<AppHeaderProps> = ({ running, port, error, restartPending, onRestart }) => (
