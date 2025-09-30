@@ -454,7 +454,6 @@ function historyClient(config: HistoryClientConfig): void {
           || (window.navigator.platform === 'MacIntel' && window.navigator.maxTouchPoints > 1);
         const supportsDownloadAttribute = 'download' in HTMLAnchorElement.prototype && !isIosDevice;
 
-        let navigatedAway = false;
         if (supportsDownloadAttribute) {
           const anchor = document.createElement('a');
           anchor.href = objectUrl;
@@ -463,18 +462,15 @@ function historyClient(config: HistoryClientConfig): void {
           document.body.appendChild(anchor);
           anchor.click();
           anchor.remove();
+          await removeFileAfterDownload(urlId);
         } else {
           const openedWindow = window.open(objectUrl, '_blank', 'noopener');
-          if (!openedWindow) {
-            navigatedAway = true;
-            window.location.href = objectUrl;
+          if (openedWindow) {
+            await removeFileAfterDownload(urlId);
+          } else {
+            await removeFileAfterDownload(urlId);
+            window.location.href = objectUrl; // cleanup 완료 후 이동
           }
-        }
-
-        if (navigatedAway) {
-          void removeFileAfterDownload(urlId);
-        } else {
-          await removeFileAfterDownload(urlId);
         }
       } catch (_error) {
         window.alert('파일 다운로드 중 오류가 발생했습니다.');
