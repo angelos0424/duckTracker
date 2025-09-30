@@ -349,11 +349,18 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                 }
             }
 
-            if (/[MERGER]/u.test(line)) {
-              console.log(' find MERGER -- ', line);
-            }
+            if (line.startsWith(' [Merger]')) {
+              // [Merger] Merging formats into "/downloads/[4K] 250923 프로미스나인 송하영 なんでもないや (아무것도 아니야) 직캠 @2025 fromis_9 WORLD TOUR [NOW TOMORROW.] IN JAPAN [U_-FOOgd5ls].webm"
 
-            if (/has already been downloaded/u.test(line)) {
+              let title = line.split('/')[2];
+              console.log(' find MERGER -- ', title);
+              title = title.slice(0, title.length-1);
+              console.log(' find MERGER2 -- ', title);
+              captureResolvedTitle(title);
+              recordDownloadFilePath({ urlId: request.urlId, filePath: '/downloads/'+title });
+              emitFinished({ status: 'completed', percent: 100, filePath: '/downloads/'+title, title: title });
+              this.finish(request.urlId);
+            } else if (/has already been downloaded/u.test(line)) {
                 const inferredPath =
                     downloadEntry.filePath ||
                     this.findExistingFileById(request.urlId) ||
