@@ -390,6 +390,27 @@ function historyClient(config: HistoryClientConfig): void {
     }
   }
 
+  async function removeFileAfterDownload(urlId: string): Promise<void> {
+    try {
+      const response = await fetch(`/history/${encodeURIComponent(urlId)}/file`, { method: 'DELETE' });
+
+      if (!response.ok) {
+        if (response.status !== 404) {
+          const data = (await response.json().catch(() => ({}))) as { error?: string };
+          window.alert(data.error || '다운로드 후 파일 삭제에 실패했습니다.');
+        }
+        return;
+      }
+
+      const state = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+      if (state) {
+        handleDownloadState(state);
+      }
+    } catch (_error) {
+      window.alert('다운로드 후 파일 삭제 중 오류가 발생했습니다.');
+    }
+  }
+
   document.querySelectorAll<HTMLButtonElement>('.download-button').forEach((button) => {
     button.addEventListener('click', async () => {
       if (button.disabled) {
@@ -404,7 +425,6 @@ function historyClient(config: HistoryClientConfig): void {
         if (!response.ok) {
           const data = (await response.json().catch(() => ({}))) as { error?: string };
           window.alert(data.error || '파일을 다운로드할 수 없습니다.');
-          button.disabled = false;
           return;
         }
 
@@ -421,9 +441,10 @@ function historyClient(config: HistoryClientConfig): void {
         anchor.remove();
 
         window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-        button.disabled = false;
+        await removeFileAfterDownload(urlId);
       } catch (_error) {
         window.alert('파일 다운로드 중 오류가 발생했습니다.');
+      } finally {
         button.disabled = false;
       }
     });
