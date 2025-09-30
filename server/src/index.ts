@@ -407,18 +407,22 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
 
 async function handleHistoryFileDelete(_req: IncomingMessage, res: ServerResponse, urlId: string | undefined): Promise<void> {
     try {
+        console.log('[request] file delete', urlId);
         if (!urlId) {
             jsonResponse(res, 400, { error: 'urlId is required' });
             return;
         }
 
         const record = getDownloadState(urlId);
+
+        console.log('[request] get record', record);
         if (!record) {
             jsonResponse(res, 404, { error: '다운로드 정보를 찾을 수 없습니다.' });
             return;
         }
 
         const filePath = record.filePath;
+        console.log('[request] get filePath', filePath);
         if (!filePath) {
             jsonResponse(res, 404, { error: '삭제할 파일이 없습니다.' });
             return;
