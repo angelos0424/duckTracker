@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { loadConfig, ServerConfig } from './config';
 import { DownloadManager, DownloadSnapshot } from './download-manager';
 import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server';
-import { getHistoryPageCss } from './history-page-assets';
+import { getHistoryClientScript, getHistoryPageCss, getReactDomUmdScript, getReactUmdScript } from './history-page-assets';
 import {
     initDatabase,
     ensureUrlIds,
@@ -370,7 +370,14 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
                 try {
                     stats = await fs.promises.stat(normalisedFallback);
                     resolved = normalisedFallback;
-                    recordDownloadFilePath({ urlId, filePath: resolved });
+                    const relative = path.relative(config.downloadDir, resolved);
+                    const clientPath =
+                        relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : resolved;
+                    recordDownloadFilePath({
+                        urlId,
+                        filePath: clientPath,
+                        fileSizeBytes: stats.size
+                    });
                 } catch (fallbackError) {
                     const fallbackErr = fallbackError as NodeJS.ErrnoException;
                     console.error('[history] File download fallback stat failed', { urlId, error: fallbackErr.message });
@@ -446,7 +453,7 @@ async function handleHistoryFileDelete(_req: IncomingMessage, res: ServerRespons
         }
 
         clearDownloadFilePath(urlId);
-        jsonResponse(res, 200, { urlId, filePath: '', status: record.status || 'unknown' });
+        jsonResponse(res, 200, { urlId, filePath: '', fileSizeBytes: null, status: record.status || 'unknown' });
         console.info('[history] Cleared filePath metadata', { urlId });
     } catch (error) {
         const err = error as Error;
@@ -548,6 +555,33 @@ function handleHistory(_req: IncomingMessage, res: ServerResponse, query: Histor
     let pageSize = parseInteger(query.pageSize, 20);
     pageSize = Math.min(pageSize, 100);
 
+    const attachFileSizes = (items: SearchDownloadsResult['items']): SearchDownloadsResult['items'] =>
+        items.map((item) => {
+            if (!item.filePath) {
+                return item;
+            }
+
+            const hasSize = typeof item.fileSizeBytes === 'number' && Number.isFinite(item.fileSizeBytes) && item.fileSizeBytes >= 0;
+            if (hasSize) {
+                return item;
+            }
+
+            const resolved = resolveWithinDownloadDir(item.filePath);
+            if (!resolved) {
+                return item;
+            }
+
+            try {
+                const stats = fs.statSync(resolved);
+                if (typeof stats.isFile === 'function' && !stats.isFile()) {
+                    return item;
+                }
+                return { ...item, fileSizeBytes: stats.size };
+            } catch (error) {
+                return item;
+            }
+        });
+
     let result: SearchDownloadsResult = searchDownloads({ searchTerm, page, pageSize });
     const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
@@ -556,8 +590,10 @@ function handleHistory(_req: IncomingMessage, res: ServerResponse, query: Histor
         result = searchDownloads({ searchTerm, page, pageSize });
     }
 
+    const itemsWithSize = attachFileSizes(result.items);
+
     const html = renderHistoryPageToHtml({
-        items: result.items,
+        items: itemsWithSize,
         total: result.total,
         page,
         pageSize: result.pageSize,
@@ -582,6 +618,36 @@ const server = http.createServer((req, res) => {
             'Cache-Control': 'public, max-age=300'
         });
         res.end(css);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/react.production.min.js') {
+        const script = getReactUmdScript();
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+        });
+        res.end(script);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/react-dom.production.min.js') {
+        const script = getReactDomUmdScript();
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+        });
+        res.end(script);
+        return;
+    }
+
+    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/history-client.js') {
+        const clientScript = getHistoryClientScript();
+        res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=120'
+        });
+        res.end(clientScript);
         return;
     }
 
