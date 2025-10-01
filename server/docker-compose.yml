@@ -16,11 +16,12 @@ services:
       - YT_DLP_RUNNER=${YT_DLP_RUNNER:-docker}
       - DOCKER_BIN=${DOCKER_BIN:-docker}
       - SERVER_CONTAINER_NAME=${SERVER_CONTAINER_NAME:-ducktracker-server}
+      - COOKIE_FILE_PATH=${COOKIE_FILE_PATH}
     ports:
       - "${PORT:-8080}:8080"
 
     volumes:
-      - ${CHROME_PROFILE_PATH}:/root/.config/google-chrome:ro
+      # - ${CHROME_PROFILE_PATH}:/root/.config/google-chrome:ro # linux utf issue로 environment에 COOKIE_FILE_PATH를 추가하는 것으로 대체.
       - ${HOST_DOWNLOAD_DIR:-./downloads}:/downloads
       - tracker-db:/data
       - /var/run/docker.sock:/var/run/docker.sock
