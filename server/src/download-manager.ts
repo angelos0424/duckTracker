@@ -296,8 +296,15 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
           const { child, containerName } = spawnResult;
 
           child.stdout!!.on('data', (data) => {
-            console.log(data.toString());
+            console.log('data', data.toString());
           })
+
+          const stdoutReader = child.stdout ? readline.createInterface({ input: child.stdout }) : null;
+          stdoutReader?.on('line', (line) => {
+            if (!line) return;
+            console.log(line);
+          });
+
         } catch (error) {
           const err = error as Error;
           const errorState: DownloadSnapshot = {
