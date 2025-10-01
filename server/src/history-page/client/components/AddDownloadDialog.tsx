@@ -1,6 +1,6 @@
-import React from 'react';
-import type { FormatOption } from '../types';
-import type { DialogMode } from '../hooks/useDialogState';
+import type { FC } from 'react';
+import type { FormatOption } from '../types.js';
+import type { DialogMode } from '../hooks/useDialogState.js';
 
 interface AddDownloadDialogProps {
     open: boolean;
@@ -19,7 +19,7 @@ interface AddDownloadDialogProps {
     onBack?: () => void;
 }
 
-export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
+export const AddDownloadDialog: FC<AddDownloadDialogProps> = ({
     open,
     mode,
     urlValue,

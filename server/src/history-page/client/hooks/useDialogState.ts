@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { DownloadRequestResponse, FormatOption } from '../types';
+import type { DownloadRequestResponse, FormatOption } from '../types.js';
 
 export type DialogMode = 'url' | 'format';
 
@@ -87,6 +87,7 @@ export function useDialogState(enableFormatSelection: boolean) {
             if (!enableFormatSelection) {
                 return;
             }
+            const initialOption = details.options.find((option) => option.isAudioOnly !== true) ?? details.options[0] ?? null;
             setState((current) => ({
                 ...current,
                 open: true,
@@ -94,7 +95,7 @@ export function useDialogState(enableFormatSelection: boolean) {
                 isSubmitting: false,
                 errorMessage: '',
                 formatOptions: details.options,
-                selectedFormatId: details.options.length > 0 ? details.options[0].id : '',
+                selectedFormatId: initialOption ? initialOption.id : '',
                 formatTitle: details.title,
                 formatUrlId: details.urlId,
                 urlValue: details.url || current.urlValue

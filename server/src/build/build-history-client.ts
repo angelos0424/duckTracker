@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildSync } from 'esbuild';
 
 function ensureDir(filePath: string): void {
@@ -9,7 +10,8 @@ function ensureDir(filePath: string): void {
     }
 }
 
-const distDir = path.resolve(__dirname, '..');
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.resolve(currentDir, '..');
 const projectRoot = path.resolve(distDir, '..');
 const srcEntry = path.resolve(projectRoot, 'src/history-page/client/index.tsx');
 const outFile = path.resolve(distDir, 'history-client.js');
@@ -24,9 +26,5 @@ buildSync({
     platform: 'browser',
     target: ['es2019'],
     sourcemap: false,
-    minify: true,
-    external: ['react', 'react-dom'],
-    banner: {
-        js: 'const React=window.React; const ReactDOM=window.ReactDOM;'
-    }
+    minify: true
 });

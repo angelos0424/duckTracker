@@ -1,5 +1,5 @@
-import type { DownloadRequestResponse, HistoryItem, RequestDownloadPayload } from '../types';
-import { extractFilename } from '../utils/format';
+import type { DownloadRequestResponse, HistoryItem, RequestDownloadPayload } from '../types.js';
+import { extractFilename } from '../utils/format.js';
 
 async function parseJson<T>(response: Response): Promise<T | null> {
     try {

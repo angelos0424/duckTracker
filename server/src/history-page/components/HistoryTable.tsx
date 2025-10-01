@@ -1,7 +1,7 @@
 import React from 'react';
-import type { HistoryItem } from '../types';
-import type { ActionsCellHandlers, ActionsCellState } from './ActionsCell';
-import { TableRow } from './TableRow';
+import type { HistoryItem } from '../types.js';
+import type { ActionsCellHandlers, ActionsCellState } from './ActionsCell.js';
+import { TableRow } from './TableRow.js';
 
 interface PendingMaps {
     download?: Record<string, boolean>;

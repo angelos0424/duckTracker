@@ -1,8 +1,8 @@
 import React from 'react';
-import type { HistoryItem } from '../types';
-import { formatFileSize, getProgressFromItem } from '../utils/format';
-import { ProgressCell } from './ProgressCell';
-import { ActionsCell, type ActionsCellHandlers, type ActionsCellState } from './ActionsCell';
+import type { HistoryItem } from '../types.js';
+import { formatFileSize, getProgressFromItem } from '../utils/format.js';
+import { ProgressCell } from './ProgressCell.js';
+import { ActionsCell, type ActionsCellHandlers, type ActionsCellState } from './ActionsCell.js';
 
 interface TableRowProps {
     item: HistoryItem;

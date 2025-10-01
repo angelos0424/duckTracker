@@ -1,18 +1,19 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
 let cachedHistoryCss: string | null = null;
-let cachedReactScript: string | null = null;
-let cachedReactDomScript: string | null = null;
 let cachedHistoryClientScript: string | null = null;
 
-const requireModule = createRequire(__filename);
+const moduleUrl = import.meta.url;
+const currentDir = path.dirname(fileURLToPath(moduleUrl));
+const requireModule = createRequire(moduleUrl);
 
 function resolveCssPath(): string {
     const candidates = [
-        path.resolve(__dirname, 'history-page.css'),
-        path.resolve(__dirname, '../src/history-page.css'),
+        path.resolve(currentDir, 'history-page.css'),
+        path.resolve(currentDir, '../src/history-page.css'),
         path.resolve(process.cwd(), 'src/history-page.css')
     ];
 
@@ -37,8 +38,8 @@ export function getHistoryPageCss(): string {
 
 function readHistoryClientFromDist(): string | null {
     const candidates = [
-        path.resolve(__dirname, 'history-client.js'),
-        path.resolve(__dirname, '../history-client.js'),
+        path.resolve(currentDir, 'history-client.js'),
+        path.resolve(currentDir, '../history-client.js'),
         path.resolve(process.cwd(), 'dist/history-client.js')
     ];
 
@@ -53,8 +54,8 @@ function readHistoryClientFromDist(): string | null {
 
 function resolveClientEntryPoint(): string {
     const candidates = [
-        path.resolve(__dirname, 'history-page/client/index.tsx'),
-        path.resolve(__dirname, '../src/history-page/client/index.tsx'),
+        path.resolve(currentDir, 'history-page/client/index.tsx'),
+        path.resolve(currentDir, '../src/history-page/client/index.tsx'),
         path.resolve(process.cwd(), 'src/history-page/client/index.tsx')
     ];
 
@@ -79,9 +80,7 @@ function buildHistoryClientScript(): string {
             target: ['es2019'],
             write: false,
             sourcemap: false,
-            minify: true,
-            external: ['react', 'react-dom'],
-            banner: { js: 'const React=window.React; const ReactDOM=window.ReactDOM;' }
+            minify: true
         });
         if (!result.outputFiles || result.outputFiles.length === 0) {
             throw new Error('History client build produced no output');
@@ -90,27 +89,6 @@ function buildHistoryClientScript(): string {
     } catch (error) {
         throw new Error(`Failed to build history client: ${(error as Error).message}`);
     }
-}
-
-function readUmdScript(moduleName: string, fileName: string): string {
-    const packageJsonPath = requireModule.resolve(`${moduleName}/package.json`);
-    const moduleDir = path.dirname(packageJsonPath);
-    const scriptPath = path.join(moduleDir, 'umd', fileName);
-    return fs.readFileSync(scriptPath, 'utf8');
-}
-
-export function getReactUmdScript(): string {
-    if (!cachedReactScript) {
-        cachedReactScript = readUmdScript('react', 'react.production.min.js');
-    }
-    return cachedReactScript;
-}
-
-export function getReactDomUmdScript(): string {
-    if (!cachedReactDomScript) {
-        cachedReactDomScript = readUmdScript('react-dom', 'react-dom.production.min.js');
-    }
-    return cachedReactDomScript;
 }
 
 export function getHistoryClientScript(): string {

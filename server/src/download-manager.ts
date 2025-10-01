@@ -11,8 +11,8 @@ import {
     recordDownloadStopped,
     recordDownloadTitle,
     recordDownloadFilePath
-} from './database';
-import { ServerConfig, RunnerConfig } from './config';
+} from './database.js';
+import { ServerConfig, RunnerConfig } from './config.js';
 
 export interface DownloadRequest {
     url: string;
@@ -62,6 +62,7 @@ export interface FormatOptionSummary {
     tbr: number | null;
     ext: string;
     filesize: number | null;
+    isAudioOnly: boolean;
 }
 
 interface ScheduleResult {
@@ -227,7 +228,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
         const segments = template
             .split(/[\\/]+/u)
-            .map((segment) => this.sanitisePathSegment(segment, safeTitle))
+            .map((segment: string) => this.sanitisePathSegment(segment, safeTitle))
             .filter(Boolean);
 
         if (segments.length === 0) {
@@ -860,7 +861,6 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             const title = formatInfo.title || request.title || '';
             request.title = title;
-            console.log('this.config.checkFormatList && !request.formatId -- ', title)
             if (title) {
                 recordDownloadTitle({ urlId: request.urlId, title });
             }
@@ -886,17 +886,26 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         }
 
         if (this.config.checkFormatList && request.formatId) {
-
             const cached = this.formatCache.get(request.urlId) || (await this.getFormatList(request));
             this.formatCache.set(request.urlId, cached);
 
-            const matched = cached.formats.find((item) => item.formatId === request.formatId);
-            if (!matched) {
+            const formatIds = request.formatId
+                .split('+')
+                .map((part) => part.trim())
+                .filter((part) => part.length > 0);
+
+            if (formatIds.length === 0) {
+                throw new Error('Selected format not available.');
+            }
+
+            const missing = formatIds.filter(
+                (formatId) => !cached.formats.some((item) => item.formatId === formatId)
+            );
+            if (missing.length > 0) {
                 throw new Error('Selected format not available.');
             }
 
             const resolvedTitle = cached.title || request.title || '';
-            console.log('this.config.checkFormatList && request.formatId -- ', cached.title, request.title);
             request.title = resolvedTitle;
             if (resolvedTitle) {
                 recordDownloadTitle({ urlId: request.urlId, title: resolvedTitle });
@@ -1214,7 +1223,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             resolution: item.resolution,
             tbr: item.tbr,
             ext: item.ext,
-            filesize: item.filesize
+            filesize: item.filesize,
+            isAudioOnly: item.isAudioOnly
         };
     }
 

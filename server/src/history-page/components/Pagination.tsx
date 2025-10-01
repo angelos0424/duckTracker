@@ -1,6 +1,6 @@
 import React from 'react';
-import type { PaginationState } from '../types';
-import { buildPageLink } from '../utils/links';
+import type { PaginationState } from '../types.js';
+import { buildPageLink } from '../utils/links.js';
 
 export const Pagination: React.FC<PaginationState> = ({ page, totalPages, pageSize, searchTerm }) => {
     const baseParams = new URLSearchParams();

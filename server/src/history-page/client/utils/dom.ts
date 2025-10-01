@@ -1,4 +1,4 @@
-import type { HistoryPageBootstrap } from '../types';
+import type { HistoryPageBootstrap } from '../types.js';
 
 export function ready(callback: () => void): void {
     if (document.readyState === 'loading') {

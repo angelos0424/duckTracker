@@ -1,4 +1,4 @@
-import type { FormatOption, HistoryItemBase } from '../shared/types';
+import type { FormatOption, HistoryItemBase } from '../shared/types.js';
 
 export interface HistoryItem extends HistoryItemBase {}
 
@@ -38,9 +38,10 @@ export interface DownloadRequestResponse {
     mode?: 'url' | 'format';
     item?: HistoryItem;
     options?: FormatOption[];
+    formatOptions?: FormatOption[];
     title?: string;
     url?: string;
     requiresFormatSelection?: boolean;
 }
 
-export type { FormatOption } from '../shared/types';
+export type { FormatOption } from '../shared/types.js';

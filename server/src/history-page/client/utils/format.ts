@@ -1,4 +1,4 @@
-import type { FormatOption, HistoryItem } from '../types';
+import type { FormatOption, HistoryItem } from '../types.js';
 
 export function formatProgress(value: unknown): number {
     if (!Number.isFinite(value)) {
@@ -90,11 +90,13 @@ export function normaliseFormatOptions(options: unknown): FormatOption[] {
         if (!raw.id) {
             continue;
         }
+
         const id = String(raw.id);
         const resolution = typeof raw.resolution === 'string' ? raw.resolution : '';
         const rawTbr = typeof raw.tbr === 'number' && Number.isFinite(raw.tbr) ? (raw.tbr as number) : null;
         const ext = typeof raw.ext === 'string' ? raw.ext : '';
         const rawFilesize = typeof raw.filesize === 'number' && Number.isFinite(raw.filesize) ? (raw.filesize as number) : null;
+        const isAudioOnly = raw.isAudioOnly === true;
         const label =
             typeof raw.label === 'string' && raw.label.trim()
                 ? raw.label.trim()
@@ -108,7 +110,8 @@ export function normaliseFormatOptions(options: unknown): FormatOption[] {
             resolution,
             tbr: rawTbr,
             ext,
-            filesize: rawFilesize
+            filesize: rawFilesize,
+            isAudioOnly
         });
     }
 

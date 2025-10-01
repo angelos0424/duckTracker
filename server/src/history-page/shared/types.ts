@@ -5,6 +5,7 @@ export interface FormatOption {
     tbr?: number | null;
     ext?: string;
     filesize?: number | null;
+    isAudioOnly?: boolean | null;
 }
 
 export interface HistoryItemBase {

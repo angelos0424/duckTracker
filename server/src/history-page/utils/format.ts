@@ -1,4 +1,4 @@
-import type { HistoryItem } from '../types';
+import type { HistoryItem } from '../types.js';
 
 export function formatProgress(value: unknown): number {
     if (!Number.isFinite(value)) {

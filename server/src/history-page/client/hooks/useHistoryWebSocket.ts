@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { HistoryItem, WebSocketMessage } from '../types';
+import type { HistoryItem, WebSocketMessage } from '../types.js';
 
 function isHistoryItemCandidate(value: unknown): value is HistoryItem {
     return Boolean(

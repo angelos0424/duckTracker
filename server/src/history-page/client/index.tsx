@@ -1,17 +1,8 @@
-import { ready, parseBootstrapProps } from './utils/dom';
-import type { HistoryPageBootstrap } from './types';
-import { HistoryApp } from './components/HistoryApp';
+import { createRoot } from 'react-dom/client';
+import { ready, parseBootstrapProps } from './utils/dom.js';
+import { HistoryApp } from './components/HistoryApp.js';
 
 ready(() => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-
-    if (!window.React || !window.ReactDOM) {
-        console.error('React and ReactDOM must be loaded before history client initialises.');
-        return;
-    }
-
     const props = parseBootstrapProps();
     if (!props) {
         return;
@@ -22,7 +13,6 @@ ready(() => {
         return;
     }
 
-    const reactInstance = window.React;
-    const reactDomInstance = window.ReactDOM;
-    reactDomInstance.hydrateRoot(rootElement, reactInstance.createElement(HistoryApp, props as HistoryPageBootstrap));
+    const root = createRoot(rootElement);
+    root.render(<HistoryApp {...props} />);
 });

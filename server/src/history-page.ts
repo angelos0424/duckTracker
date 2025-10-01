@@ -1,8 +1,5 @@
-import { createElement, type ReactElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import type { DownloadRecordRow } from './database';
-import type { HistoryPageViewProps } from './history-page/types';
-import { HistoryPage } from './history-page/components/HistoryPage';
+import type { DownloadRecordRow } from './database.js';
+import type { HistoryPageViewProps } from './history-page/types.js';
 
 export interface RenderHistoryPageOptions {
     items: DownloadRecordRow[];
@@ -49,14 +46,40 @@ function buildHistoryPageProps({
     };
 }
 
-export function renderHistoryPage(options: RenderHistoryPageOptions): ReactElement {
-    const props = buildHistoryPageProps(options);
-    return createElement(HistoryPage, props);
+function escapeHtmlAttribute(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function serialisePropsForScript(value: unknown): string {
+    return JSON.stringify(value).replace(/</g, '\u003C');
 }
 
 export function renderHistoryPageToHtml(options: RenderHistoryPageOptions): string {
-    const element = renderHistoryPage(options);
-    return '<!DOCTYPE html>' + renderToStaticMarkup(element);
+    const props = buildHistoryPageProps(options);
+    const propsJson = serialisePropsForScript(props);
+    const wsPathAttr = escapeHtmlAttribute(props.wsPath);
+
+    return [
+        '<!DOCTYPE html>',
+        '<html lang="ko">',
+        '<head>',
+        '    <meta charSet="UTF-8" />',
+        '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+        '    <title>다운로드 이력</title>',
+        '    <link rel="stylesheet" href="/history/assets/history-page.css" />',
+        '</head>',
+        `<body data-ws-path="${wsPathAttr}">`,
+        '    <div id="history-root"></div>',
+        `    <script id="history-props" type="application/json">${propsJson}</script>`,
+        '    <script src="/history/assets/history-client.js" defer></script>',
+        '</body>',
+        '</html>'
+    ].join('');
 }
 
-export type { HistoryPageViewProps } from './history-page/types';
+export type { HistoryPageViewProps } from './history-page/types.js';

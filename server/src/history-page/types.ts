@@ -1,5 +1,5 @@
-import type { DownloadRecordRow } from '../database';
-import type { FormatOption, HistoryItemBase } from './shared/types';
+import type { DownloadRecordRow } from '../database.js';
+import type { FormatOption, HistoryItemBase } from './shared/types.js';
 
 export type HistoryItem = Omit<DownloadRecordRow, keyof HistoryItemBase> & HistoryItemBase;
 
@@ -23,4 +23,4 @@ export interface HistoryPageViewProps {
     checkFormatList: boolean;
 }
 
-export type { FormatOption } from './shared/types';
+export type { FormatOption } from './shared/types.js';

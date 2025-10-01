@@ -1,14 +1,14 @@
-import React, { Fragment, useCallback, useMemo, useState } from 'react';
-import { HistoryTable } from '../../components/HistoryTable';
-import { Pagination } from '../../components/Pagination';
-import { SearchForm } from '../../components/SearchForm';
-import type { HistoryPageBootstrap } from '../types';
-import { AddDownloadDialog } from './AddDownloadDialog';
-import { useBusyMap } from '../hooks/useBusyMap';
-import { useDialogState } from '../hooks/useDialogState';
-import { useHistoryWebSocket } from '../hooks/useHistoryWebSocket';
-import type { DownloadRequestResponse, HistoryItem } from '../types';
-import { normaliseFormatOptions, validateUrl, deriveUrlId } from '../utils/format';
+import { useCallback, useMemo, useState, type FC } from 'react';
+import { HistoryTable } from '../../components/HistoryTable.js';
+import { Pagination } from '../../components/Pagination.js';
+import { SearchForm } from '../../components/SearchForm.js';
+import type { HistoryPageBootstrap } from '../types.js';
+import { AddDownloadDialog } from './AddDownloadDialog.js';
+import { useBusyMap } from '../hooks/useBusyMap.js';
+import { useDialogState } from '../hooks/useDialogState.js';
+import { useHistoryWebSocket } from '../hooks/useHistoryWebSocket.js';
+import type { DownloadRequestResponse, HistoryItem } from '../types.js';
+import { normaliseFormatOptions, validateUrl, deriveUrlId } from '../utils/format.js';
 import {
     deleteHistory as deleteHistoryApi,
     fetchDownloadFile,
@@ -16,7 +16,7 @@ import {
     requestDownload,
     resumeDownload as resumeDownloadApi,
     stopDownload as stopDownloadApi
-} from '../services/historyApi';
+} from '../services/historyApi.js';
 
 type HistoryAppProps = HistoryPageBootstrap;
 
@@ -28,7 +28,7 @@ function toBooleanMap(source: Record<string, boolean>): Record<string, boolean> 
     return { ...source };
 }
 
-export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
+export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const [items, setItems] = useState<HistoryItem[]>(() => cloneItems(props.items));
     const downloadBusy = useBusyMap();
     const stopBusy = useBusyMap();
@@ -40,7 +40,9 @@ export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
     const dialog = useDialogState(props.checkFormatList);
     const dialogState = dialog.state;
 
+    console.log('dialogState', dialogState);
     const updateItemState = useCallback((state: HistoryItem | null) => {
+
         if (!state || !state.urlId) {
             return;
         }
@@ -275,15 +277,20 @@ export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
                     return;
                 }
                 if ((response as DownloadRequestResponse).requiresFormatSelection) {
-                    const data = response as DownloadRequestResponse & HistoryItem;
-                    updateItemState(data);
+                    const data = response as DownloadRequestResponse;
+                    const nextItem = (data.item ?? null) as HistoryItem | null;
+                    if (nextItem) {
+                        updateItemState(nextItem);
+                    }
                     if (props.checkFormatList) {
-                        const options = normaliseFormatOptions(data.formatOptions ?? []);
+                        const options = normaliseFormatOptions(
+                            data.options ?? data.formatOptions ?? data.item?.formatOptions ?? []
+                        );
                         dialog.openFormatSelection({
                             options,
-                            title: data.title || '',
+                            title: data.title || nextItem?.title || '',
                             urlId,
-                            url: data.url || ''
+                            url: data.url || nextItem?.url || ''
                         });
                         formatBusy.setBusy(urlId, false);
                         return;
@@ -336,20 +343,74 @@ export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
                 dialog.setError('다운로드할 포맷을 선택해주세요.');
                 return;
             }
+            const selectedOption = dialogState.formatOptions.find((option) => option.id === dialogState.selectedFormatId);
+            if (!selectedOption) {
+                dialog.setError('선택한 포맷을 찾을 수 없습니다.');
+                return;
+            }
             dialog.setError('');
             dialog.setSubmitting(true);
             const urlId = dialogState.formatUrlId;
             formatBusy.setBusy(urlId, true);
             try {
+                let finalFormatId = selectedOption.id;
+                if (!finalFormatId.includes('+') && selectedOption.isAudioOnly !== true) {
+                    const audioCandidates = dialogState.formatOptions.filter((option) => option.isAudioOnly);
+                    if (audioCandidates.length > 0) {
+                        const selectedExt = (selectedOption.ext || '').toLowerCase();
+                        const candidates = selectedExt
+                            ? audioCandidates.filter(
+                                  (option) => (option.ext || '').toLowerCase() === selectedExt
+                              )
+                            : [];
+
+                        if (candidates.length > 0) {
+                            const bestAudio = candidates.reduce((best, current) => {
+                                if (!best) {
+                                    return current;
+                                }
+
+                                const bestTbr = typeof best.tbr === 'number' && Number.isFinite(best.tbr) ? best.tbr : -1;
+                            const currentTbr =
+                                typeof current.tbr === 'number' && Number.isFinite(current.tbr) ? current.tbr : -1;
+                            if (currentTbr !== bestTbr) {
+                                return currentTbr > bestTbr ? current : best;
+                            }
+
+                            const bestSize =
+                                typeof best.filesize === 'number' && Number.isFinite(best.filesize) ? best.filesize : -1;
+                            const currentSize =
+                                typeof current.filesize === 'number' && Number.isFinite(current.filesize)
+                                    ? current.filesize
+                                    : -1;
+                            if (currentSize !== bestSize) {
+                                return currentSize > bestSize ? current : best;
+                            }
+
+                            return best;
+                            }, candidates[0]);
+
+                            if (bestAudio && bestAudio.id && bestAudio.id !== selectedOption.id) {
+                                finalFormatId = `${selectedOption.id}+${bestAudio.id}`;
+                            }
+                        }
+                    }
+                }
+
                 const payload = {
                     url: dialogState.urlValue,
                     urlId,
-                    formatId: dialogState.selectedFormatId
+                    formatId: finalFormatId
                 };
                 const data = await requestDownload(payload);
                 if (data && data.requiresFormatSelection) {
-                    updateItemState(data.item ?? null);
-                    const options = normaliseFormatOptions(data.options ?? []);
+                    const nextItem = (data.item ?? null) as HistoryItem | null;
+                    if (nextItem) {
+                        updateItemState(nextItem);
+                    }
+                    const options = normaliseFormatOptions(
+                        data.options ?? data.formatOptions ?? data.item?.formatOptions ?? []
+                    );
                     if (options.length === 0) {
                         dialog.setError('선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요.');
                         dialog.setSubmitting(false);
@@ -397,8 +458,13 @@ export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
         try {
             const data = await requestDownload({ url: trimmed, urlId: derivedId });
             if (data && data.requiresFormatSelection) {
-                updateItemState(data.item ?? null);
-                const options = normaliseFormatOptions(data.options ?? []);
+                const nextItem = (data.item ?? null) as HistoryItem | null;
+                if (nextItem) {
+                    updateItemState(nextItem);
+                }
+                const options = normaliseFormatOptions(
+                    data.options ?? data.formatOptions ?? data.item?.formatOptions ?? []
+                );
                 if (props.checkFormatList) {
                     dialog.openFormatSelection({
                         options,
@@ -435,7 +501,7 @@ export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
     );
 
     return (
-        <Fragment>
+        <>
             <div className="card">
                 <h1>다운로드 이력</h1>
                 <div className="toolbar">
@@ -494,6 +560,6 @@ export const HistoryApp: React.FC<HistoryAppProps> = (props) => {
                 onSelectFormat={dialog.selectFormat}
                 onBack={dialogState.mode === 'format' ? dialog.backToUrl : undefined}
             />
-        </Fragment>
+        </>
     );
 };
