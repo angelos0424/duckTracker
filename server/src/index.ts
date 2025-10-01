@@ -3,10 +3,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as url from 'node:url';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { loadConfig, ServerConfig } from './config';
-import { DownloadManager, DownloadSnapshot } from './download-manager';
-import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server';
-import { getHistoryClientScript, getHistoryPageCss, getReactDomUmdScript, getReactUmdScript } from './history-page-assets';
+import { loadConfig, ServerConfig } from './config.js';
+import { DownloadManager, DownloadSnapshot } from './download-manager.js';
+import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server.js';
+import { getHistoryClientScript, getHistoryPageCss } from './history-page-assets.js';
 import {
     initDatabase,
     ensureUrlIds,
@@ -17,8 +17,8 @@ import {
     clearDownloadFilePath,
     deleteDownloads,
     type SearchDownloadsResult
-} from './database';
-import { renderHistoryPageToHtml } from './history-page';
+} from './database.js';
+import { renderHistoryPageToHtml } from './history-page.js';
 
 const config: ServerConfig = loadConfig();
 initDatabase(config.dbPath);
@@ -177,11 +177,11 @@ function handleWebSocketMessage(ws: WebSocket, rawMessage: string): void {
     }
 }
 
-downloadManager.on('state', (state) => {
+downloadManager.on('state', (state: DownloadSnapshot) => {
     broadcast({ type: 'download', payload: state });
 });
 
-downloadManager.on('finished', (info) => {
+downloadManager.on('finished', (info: DownloadSnapshot) => {
     broadcast({ type: 'download-finished', payload: info });
 });
 
@@ -210,7 +210,33 @@ async function handleDownload(_req: IncomingMessage, res: ServerResponse): Promi
 
         console.info('[history] Received download schedule request', { urlId, targetUrl, title });
 
-        const scheduleResult = downloadManager.schedule({ url: targetUrl, urlId, title });
+        const formatId = typeof body.formatId === 'string' ? body.formatId : undefined;
+
+        const scheduleResult = await downloadManager.schedule({ url: targetUrl, urlId, title, formatId });
+
+        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+            const selectionState =
+                downloadManager.getState(urlId) || ({
+                    url: targetUrl,
+                    urlId,
+                    title: scheduleResult.title || title || '',
+                    status: 'format-select',
+                    percent: 0,
+                    formatOptions: scheduleResult.formatOptions || []
+                } as DownloadSnapshot);
+
+            jsonResponse(res, 200, {
+                ...selectionState,
+                requiresFormatSelection: true,
+                queued: false
+            });
+            console.info('[history] Format selection required', {
+                urlId,
+                formatCount: scheduleResult.formatOptions?.length ?? 0
+            });
+            return;
+        }
+
         const updatedState = downloadManager.getState(urlId);
         jsonResponse(res, 200, {
             ...(updatedState ?? {}),
@@ -251,7 +277,40 @@ async function handleHistoryDownloadRequest(req: IncomingMessage, res: ServerRes
             return;
         }
 
-        const scheduleResult = downloadManager.schedule({ url: targetUrl, urlId: derivedId, title: '' });
+        const formatId = typeof body.formatId === 'string' ? body.formatId : undefined;
+
+        const scheduleResult = await downloadManager.schedule({ url: targetUrl, urlId: derivedId, title: '', formatId });
+
+        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+            const selectionState =
+                downloadManager.getState(derivedId) || ({
+                    url: targetUrl,
+                    urlId: derivedId,
+                    title: scheduleResult.title ?? '',
+                    status: 'format-select',
+                    percent: 0,
+                    formatOptions: scheduleResult.formatOptions || []
+                } as DownloadSnapshot);
+
+            const options = scheduleResult.formatOptions ?? selectionState.formatOptions ?? [];
+            const responsePayload = {
+                requiresFormatSelection: true,
+                queued: false,
+                item: selectionState,
+                options,
+                title: selectionState.title,
+                url: targetUrl,
+                formatOptions: selectionState.formatOptions ?? options
+            };
+
+            jsonResponse(res, 200, responsePayload);
+            console.info('[history] Format selection required', {
+                urlId: derivedId,
+                formatCount: scheduleResult.formatOptions?.length ?? 0
+            });
+            return;
+        }
+
         const updatedState =
             downloadManager.getState(derivedId) || ({
                 url: targetUrl,
@@ -291,7 +350,7 @@ async function handleHistoryDelete(_req: IncomingMessage, res: ServerResponse, u
         }
 
         const results = await Promise.all(
-            deleted.map(async ({ filePath, urlId: deletedId }) => {
+            deleted.map(async ({ filePath, urlId: deletedId }): Promise<{ urlId: string; fileRemoved: boolean; reason?: string }> => {
                 if (!filePath) {
                     return { urlId: deletedId, fileRemoved: false };
                 }
@@ -506,11 +565,35 @@ async function handleRestart(req: IncomingMessage, res: ServerResponse): Promise
             return;
         }
 
-        const scheduleResult = downloadManager.schedule({
+        const scheduleResult = await downloadManager.schedule({
             url: record.url,
             urlId,
             title: record.title || ''
         });
+
+        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+            const selectionState =
+                downloadManager.getState(urlId) || ({
+                    url: record.url,
+                    urlId,
+                    title: scheduleResult.title ?? record.title ?? '',
+                    status: 'format-select',
+                    percent: 0,
+                    formatOptions: scheduleResult.formatOptions || []
+                } as DownloadSnapshot);
+
+            const options = scheduleResult.formatOptions ?? selectionState.formatOptions ?? [];
+            jsonResponse(res, 200, {
+                requiresFormatSelection: true,
+                queued: false,
+                item: selectionState,
+                options,
+                title: selectionState.title,
+                url: record.url,
+                formatOptions: selectionState.formatOptions ?? options
+            });
+            return;
+        }
 
         const updatedState =
             downloadManager.getState(urlId) || ({
@@ -555,8 +638,10 @@ function handleHistory(_req: IncomingMessage, res: ServerResponse, query: Histor
     let pageSize = parseInteger(query.pageSize, 20);
     pageSize = Math.min(pageSize, 100);
 
+    type SearchDownloadItem = SearchDownloadsResult['items'][number];
+
     const attachFileSizes = (items: SearchDownloadsResult['items']): SearchDownloadsResult['items'] =>
-        items.map((item) => {
+        items.map((item: SearchDownloadItem) => {
             if (!item.filePath) {
                 return item;
             }
@@ -592,13 +677,15 @@ function handleHistory(_req: IncomingMessage, res: ServerResponse, query: Histor
 
     const itemsWithSize = attachFileSizes(result.items);
 
+    console.log('config.checkFormatList', config.checkFormatList);
     const html = renderHistoryPageToHtml({
         items: itemsWithSize,
         total: result.total,
         page,
         pageSize: result.pageSize,
         searchTerm,
-        wsPath: config.wsPath
+        wsPath: config.wsPath,
+        checkFormatList: config.checkFormatList
     });
 
     htmlResponse(res, 200, html);
@@ -618,26 +705,6 @@ const server = http.createServer((req, res) => {
             'Cache-Control': 'public, max-age=300'
         });
         res.end(css);
-        return;
-    }
-
-    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/react.production.min.js') {
-        const script = getReactUmdScript();
-        res.writeHead(200, {
-            'Content-Type': 'application/javascript; charset=utf-8',
-            'Cache-Control': 'public, max-age=300'
-        });
-        res.end(script);
-        return;
-    }
-
-    if (req.method === 'GET' && parsedUrl.pathname === '/history/assets/react-dom.production.min.js') {
-        const script = getReactDomUmdScript();
-        res.writeHead(200, {
-            'Content-Type': 'application/javascript; charset=utf-8',
-            'Cache-Control': 'public, max-age=300'
-        });
-        res.end(script);
         return;
     }
 
@@ -709,7 +776,7 @@ const server = http.createServer((req, res) => {
     jsonResponse(res, 404, { error: 'Not found' });
 });
 
-websocketServer.on('connection', (ws) => {
+websocketServer.on('connection', (ws: WebSocket) => {
     websocketClients.add(ws);
     ws.on('close', () => {
         websocketClients.delete(ws);
@@ -717,7 +784,7 @@ websocketServer.on('connection', (ws) => {
     ws.on('error', () => {
         websocketClients.delete(ws);
     });
-    ws.on('message', (data) => {
+    ws.on('message', (data: WebSocket.RawData) => {
         const message = typeof data === 'string' ? data : data.toString();
         handleWebSocketMessage(ws, message);
     });

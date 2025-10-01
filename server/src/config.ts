@@ -114,7 +114,7 @@ export function loadConfig(): ServerConfig {
 
   const format = process.env.DOWNLOAD_FORMAT || buildFormat(DEFAULT_FORMAT, qualityLimit);
   const template = process.env.OUTPUT_TEMPLATE || DEFAULT_TEMPLATE;
-  const checkFormatList = Boolean(process.env.CHECK_FORMAT_LIST) || false;
+  const checkFormatList = process.env.CHECK_FORMAT_LIST?.toLowerCase() === "true" || false;
 
 
   const ensureDir = process.env.SKIP_DIR_CREATION !== 'true';
