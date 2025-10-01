@@ -312,6 +312,7 @@
       const fileAvailable = Boolean(item.filePath);
       const downloadDisabled = !fileAvailable || status !== "completed";
       const downloadTitle = downloadDisabled ? "완료된 항목만 다운로드할 수 있습니다." : "파일 다운로드";
+
       var rawSize = item.fileSizeBytes;
       var sizeValue = null;
       if (typeof rawSize === "number") {
