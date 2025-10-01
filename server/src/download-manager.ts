@@ -284,6 +284,45 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         this.start(next);
     }
 
+    private getFormatList(request: DownloadRequest): { format: string; formatId: string } {
+        const ytArgs = this.buildFormatArgs(request.url);
+
+        let spawnResult: { child: ChildProcess; containerName: string | null };
+
+        try {
+          console.log(ytArgs);
+          spawnResult = this.spawnDownloadProcess(ytArgs, request);
+
+          const { child, containerName } = spawnResult;
+
+          child.stdout!!.on('data', (data) => {
+            console.log(data.toString());
+          })
+        } catch (error) {
+          const err = error as Error;
+          const errorState: DownloadSnapshot = {
+            status: 'error',
+            url: request.url,
+            urlId: request.urlId,
+            title: request.title || '',
+            percent: 0,
+            error: err.message
+          };
+          this.state.set(request.urlId, errorState);
+          this.emit('state', errorState);
+          recordDownloadError({ urlId: request.urlId, url: request.url, error: err.message });
+          return {
+            format : '',
+            formatId: ''
+          };
+        }
+
+        return {
+          format : '',
+          formatId: ''
+        }
+    }
+
     private start(request: DownloadRequest): boolean {
         if (this.activeDownloads.has(request.urlId)) {
             return false;
@@ -466,6 +505,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
         const stdout = child.stdout;
         const stderr = child.stderr;
+
         const stdoutReader = stdout ? readline.createInterface({ input: stdout }) : null;
         stdoutReader?.on('line', (line) => {
             if (!line) return;
@@ -553,13 +593,20 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
     }
 
     schedule(request: DownloadRequest): { queued: boolean } {
+        // downloading, queued는 없음.
         recordDownloadQueued(request);
+
         if (this.activeDownloads.size >= this.config.maxConcurrent) {
             this.enqueue(request);
             return { queued: true };
         }
 
-        this.start(request);
+        if (this.config.checkFormatList) {
+            this.getFormatList(request);
+        } else {
+            this.start(request);
+        }
+
         return { queued: false };
     }
 
@@ -650,6 +697,35 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         return { child, containerName: null };
     }
 
+    private buildFormatArgs(url: string): string[] {
+        const runner = this.config.runner;
+        const cookieFilePath = 'cookieFilePath' in runner ? runner.cookieFilePath : undefined;
+        const chromePath = 'chromePath' in runner ? runner.chromePath : undefined;
+
+        if (!cookieFilePath && !chromePath) {
+          throw new Error('cookieFilePath or chromePath must be set');
+        }
+
+        const args = [
+          url,
+          '-j',
+          '--format-sort',
+          'res,tbr,ext,filesize'
+        ];
+
+        if (cookieFilePath) {
+          if (!fs.existsSync(cookieFilePath)) {
+            throw new Error(`Cookie file not found: ${cookieFilePath}`);
+          }
+          args.push('--cookies', cookieFilePath);
+        } else if (chromePath) {
+          args.push('--cookies-from-browser', chromePath);
+        }
+        args.push('--newline');
+
+        return args
+    }
+
     private buildArgs(url: string): string[] {
         const runner = this.config.runner;
         const cookieFilePath = 'cookieFilePath' in runner ? runner.cookieFilePath : undefined;
@@ -680,10 +756,10 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
         args.push('--newline');
 
-        if (this.config.qualityLimit != null) {
-            args.push('--format-sort');
-            args.push(`res:${this.config.qualityLimit}`);
-        }
+        // if (this.config.qualityLimit != null) {
+        //     args.push('--format-sort');
+        //     args.push(`res:${this.config.qualityLimit}`);
+        // }
 
         return args;
     }

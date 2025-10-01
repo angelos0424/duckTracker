@@ -38,6 +38,7 @@ export interface ServerConfig {
   httpPort: number;
   wsPath: string;
   qualityLimit: number | null;
+  checkFormatList: boolean;
   runner: RunnerConfig;
 }
 
@@ -113,6 +114,8 @@ export function loadConfig(): ServerConfig {
 
   const format = process.env.DOWNLOAD_FORMAT || buildFormat(DEFAULT_FORMAT, qualityLimit);
   const template = process.env.OUTPUT_TEMPLATE || DEFAULT_TEMPLATE;
+  const checkFormatList = process.env.CHECK_FORMAT_LIST || false;
+
 
   const ensureDir = process.env.SKIP_DIR_CREATION !== 'true';
   if (ensureDir) {
@@ -129,6 +132,7 @@ export function loadConfig(): ServerConfig {
     httpPort,
     wsPath,
     qualityLimit,
+    checkFormatList,
     runner: buildRunner(downloadDir)
   };
 }
