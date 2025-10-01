@@ -35,11 +35,27 @@ export function getHistoryPageCss(): string {
     return cachedHistoryCss;
 }
 
-function resolveHistoryClientScriptPath(): string {
+function readHistoryClientFromDist(): string | null {
     const candidates = [
         path.resolve(__dirname, 'history-client.js'),
-        path.resolve(__dirname, '../src/history-client.js'),
-        path.resolve(process.cwd(), 'src/history-client.js')
+        path.resolve(__dirname, '../history-client.js'),
+        path.resolve(process.cwd(), 'dist/history-client.js')
+    ];
+
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            return fs.readFileSync(candidate, 'utf8');
+        }
+    }
+
+    return null;
+}
+
+function resolveClientEntryPoint(): string {
+    const candidates = [
+        path.resolve(__dirname, 'history-page/client/index.tsx'),
+        path.resolve(__dirname, '../src/history-page/client/index.tsx'),
+        path.resolve(process.cwd(), 'src/history-page/client/index.tsx')
     ];
 
     for (const candidate of candidates) {
@@ -48,7 +64,32 @@ function resolveHistoryClientScriptPath(): string {
         }
     }
 
-    throw new Error('history-client.js not found');
+    throw new Error('history client entry not found');
+}
+
+function buildHistoryClientScript(): string {
+    try {
+        const esbuild = requireModule('esbuild') as typeof import('esbuild');
+        const entryPoint = resolveClientEntryPoint();
+        const result = esbuild.buildSync({
+            entryPoints: [entryPoint],
+            bundle: true,
+            format: 'iife',
+            platform: 'browser',
+            target: ['es2019'],
+            write: false,
+            sourcemap: false,
+            minify: true,
+            external: ['react', 'react-dom'],
+            banner: { js: 'const React=window.React; const ReactDOM=window.ReactDOM;' }
+        });
+        if (!result.outputFiles || result.outputFiles.length === 0) {
+            throw new Error('History client build produced no output');
+        }
+        return result.outputFiles[0].text;
+    } catch (error) {
+        throw new Error(`Failed to build history client: ${(error as Error).message}`);
+    }
 }
 
 function readUmdScript(moduleName: string, fileName: string): string {
@@ -77,7 +118,12 @@ export function getHistoryClientScript(): string {
         return cachedHistoryClientScript;
     }
 
-    const scriptPath = resolveHistoryClientScriptPath();
-    cachedHistoryClientScript = fs.readFileSync(scriptPath, 'utf8');
+    const fromDist = readHistoryClientFromDist();
+    if (fromDist !== null) {
+        cachedHistoryClientScript = fromDist;
+        return cachedHistoryClientScript;
+    }
+
+    cachedHistoryClientScript = buildHistoryClientScript();
     return cachedHistoryClientScript;
 }

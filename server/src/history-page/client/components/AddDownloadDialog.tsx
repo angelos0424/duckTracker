@@ -1,0 +1,137 @@
+import React from 'react';
+import type { FormatOption } from '../types';
+import type { DialogMode } from '../hooks/useDialogState';
+
+interface AddDownloadDialogProps {
+    open: boolean;
+    mode: DialogMode;
+    urlValue: string;
+    errorMessage: string;
+    isSubmitting: boolean;
+    enableFormatSelection: boolean;
+    formatOptions: FormatOption[];
+    selectedFormatId: string;
+    formatTitle: string;
+    onClose: () => void;
+    onSubmit: () => void;
+    onUrlChange: (value: string) => void;
+    onSelectFormat: (formatId: string) => void;
+    onBack?: () => void;
+}
+
+export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
+    open,
+    mode,
+    urlValue,
+    errorMessage,
+    isSubmitting,
+    enableFormatSelection,
+    formatOptions,
+    selectedFormatId,
+    formatTitle,
+    onClose,
+    onSubmit,
+    onUrlChange,
+    onSelectFormat,
+    onBack
+}) => {
+    const isFormatMode = enableFormatSelection && mode === 'format';
+    const confirmLabel = isSubmitting ? '요청 중...' : isFormatMode ? '다운로드 시작' : '다운로드 요청';
+
+    return (
+        <div className={`dialog-backdrop${open ? ' visible' : ''}`} data-dialog="add-download" hidden={!open}
+            onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                    onClose();
+                }
+            }}
+        >
+            <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-download-title">
+                <h2 id="add-download-title">{isFormatMode ? '포맷 선택' : '다운로드 추가'}</h2>
+                <p>
+                    {isFormatMode
+                        ? formatTitle
+                            ? `"${formatTitle}"에 사용할 포맷을 선택하세요.`
+                            : '다운로드할 포맷을 선택하세요.'
+                        : '다운로드할 영상의 URL을 입력하세요.'}
+                </p>
+                <form
+                    data-form="add-download"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        onSubmit();
+                    }}
+                >
+                    {isFormatMode ? (
+                        <div className="format-options">
+                            {formatOptions.length > 0 ? (
+                                formatOptions.map((option) => (
+                                    <label className="format-option" key={option.id}>
+                                        <input
+                                            type="radio"
+                                            name="formatOption"
+                                            value={option.id}
+                                            checked={selectedFormatId === option.id}
+                                            onChange={() => onSelectFormat(option.id)}
+                                        />
+                                        <span className="format-option-label">{option.label}</span>
+                                    </label>
+                                ))
+                            ) : (
+                                <p className="form-helper">선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요.</p>
+                            )}
+                        </div>
+                    ) : (
+                        <>
+                            <label htmlFor="download-url" className="visually-hidden">
+                                다운로드 URL
+                            </label>
+                            <input
+                                type="url"
+                                id="download-url"
+                                name="url"
+                                placeholder="https://"
+                                required
+                                value={urlValue}
+                                onChange={(event) => onUrlChange(event.target.value)}
+                            />
+                        </>
+                    )}
+                    <p className="form-helper" data-error-message hidden={!errorMessage}>
+                        {errorMessage || (isFormatMode ? '다운로드할 포맷을 선택해주세요.' : '유효한 URL을 입력해주세요.')}
+                    </p>
+                    <div className="dialog-buttons">
+                        {isFormatMode && onBack ? (
+                            <button
+                                type="button"
+                                className="secondary"
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    onBack();
+                                }}
+                                disabled={isSubmitting}
+                            >
+                                이전
+                            </button>
+                        ) : null}
+                        <button
+                            type="button"
+                            className="secondary"
+                            data-action="cancel-dialog"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                onClose();
+                            }}
+                            disabled={isSubmitting}
+                        >
+                            취소
+                        </button>
+                        <button type="submit" className="primary" disabled={isSubmitting || (isFormatMode && formatOptions.length === 0)}>
+                            {confirmLabel}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};

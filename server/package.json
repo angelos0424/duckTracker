@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "postbuild": "node dist/build/copy-history-assets.js",
+    "postbuild": "node dist/build/build-history-client.js && node dist/build/copy-history-assets.js",
     "start": "node dist/index.js",
     "dev": "ts-node --transpile-only src/index.ts"
   },
@@ -30,6 +30,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.7",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
   }
