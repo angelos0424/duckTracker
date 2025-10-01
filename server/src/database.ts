@@ -17,6 +17,7 @@ export interface DownloadPayload {
 
 export interface DownloadCompletedPayload extends DownloadPayload {
     filePath?: string;
+    fileSizeBytes?: number | null;
 }
 
 export interface DownloadErrorPayload extends DownloadPayload {
@@ -26,6 +27,7 @@ export interface DownloadErrorPayload extends DownloadPayload {
 export interface DownloadFilePathPayload {
     urlId: string;
     filePath?: string;
+    fileSizeBytes?: number | null;
 }
 
 export interface DownloadTitlePayload {
@@ -42,6 +44,7 @@ export interface DownloadRecordRow {
     createdAt: string;
     updatedAt: string;
     filePath: string | null;
+    fileSizeBytes: number | null;
 }
 
 export interface SearchDownloadsInput {
@@ -63,13 +66,47 @@ interface Statements {
     upsertDownload: Statement<DownloadPayload & { status: DownloadStatus; lastError: string | null }>;
     insertIfMissing: Statement;
     setStatus: Statement<{ urlId: string; status: DownloadStatus | string; lastError: string | null }>;
-    setFilePath: Statement<{ urlId: string; filePath: string }>;
+    setFilePath: Statement<{ urlId: string; filePath: string; fileSizeBytes: number | null }>;
     setTitle: Statement<{ urlId: string; title: string }>;
     selectAllIds: Statement<unknown[], { url_id: string }>;
     selectState: Statement<string, DownloadRecordRow | undefined>;
 }
 
 let statements: Statements | null = null;
+
+function normaliseFilePathForStorage(filePath?: string | null): string {
+    if (!filePath) {
+        return '';
+    }
+
+    const trimmed = filePath.trim();
+    if (!trimmed) {
+        return '';
+    }
+
+    if (trimmed.includes('/downloads/')) {
+        return trimmed.replace('/downloads/', '');
+    }
+
+    if (trimmed.includes('\\downloads\\')) {
+        return trimmed.replace('\\downloads\\', '');
+    }
+
+    return trimmed;
+}
+
+function normaliseFileSizeBytes(value: number | null | undefined): number | null {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+        return null;
+    }
+
+    return Math.floor(numeric);
+}
 
 function ensureStatements(db: BetterSqliteDatabase): Statements {
     if (statements) {
@@ -95,9 +132,10 @@ function ensureStatements(db: BetterSqliteDatabase): Statements {
           updated_at = CURRENT_TIMESTAMP
       WHERE url_id = @urlId
     `),
-        setFilePath: db.prepare<{ urlId: string; filePath: string }>(`
+        setFilePath: db.prepare<{ urlId: string; filePath: string; fileSizeBytes: number | null }>(`
       UPDATE downloads
       SET file_path = @filePath,
+          file_size_bytes = @fileSizeBytes,
           updated_at = CURRENT_TIMESTAMP
       WHERE url_id = @urlId
     `),
@@ -110,6 +148,7 @@ function ensureStatements(db: BetterSqliteDatabase): Statements {
         selectAllIds: db.prepare('SELECT url_id FROM downloads'),
         selectState: db.prepare<string, DownloadRecordRow | undefined>(`
       SELECT url_id AS urlId, url, title, status, last_error AS lastError, file_path AS filePath,
+             file_size_bytes AS fileSizeBytes,
              created_at AS createdAt, updated_at AS updatedAt
       FROM downloads
       WHERE url_id = ?
@@ -136,7 +175,8 @@ export function initDatabase(dbPath: string): BetterSqliteDatabase {
       last_error TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      file_path TEXT DEFAULT ''
+      file_path TEXT DEFAULT '',
+      file_size_bytes INTEGER
     );
 
     CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
@@ -146,6 +186,11 @@ export function initDatabase(dbPath: string): BetterSqliteDatabase {
     const hasFilePath = columns.some((column) => column.name === 'file_path');
     if (!hasFilePath) {
         instance.exec('ALTER TABLE downloads ADD COLUMN file_path TEXT DEFAULT "";');
+    }
+
+    const hasFileSize = columns.some((column) => column.name === 'file_size_bytes');
+    if (!hasFileSize) {
+        instance.exec('ALTER TABLE downloads ADD COLUMN file_size_bytes INTEGER;');
     }
 
     ensureStatements(instance);
@@ -187,19 +232,15 @@ export function recordDownloadQueued(payload: DownloadPayload): void {
 export function recordDownloadCompleted(payload: DownloadCompletedPayload): void {
     const db = assertDb();
     const stmts = ensureStatements(db);
-    let newtitle = payload.filePath || '';
-    if (newtitle.length > 0) {
-      newtitle = newtitle.replace("/downloads/", "");
-    }
+    const filePath = normaliseFilePathForStorage(payload.filePath || '');
+    const fileSizeBytes = normaliseFileSizeBytes(payload.fileSizeBytes);
 
     stmts.setStatus.run({
         urlId: payload.urlId,
         status: 'completed',
         lastError: null
     });
-    if (payload.filePath) {
-        stmts.setFilePath.run({ urlId: payload.urlId, filePath: newtitle ?? payload.filePath });
-    }
+    stmts.setFilePath.run({ urlId: payload.urlId, filePath, fileSizeBytes });
 }
 
 export function recordDownloadTitle(payload: DownloadTitlePayload): void {
@@ -220,9 +261,12 @@ export function recordDownloadFilePath(payload: DownloadFilePathPayload): void {
     }
     const db = assertDb();
     const stmts = ensureStatements(db);
+    const filePath = normaliseFilePathForStorage(payload.filePath);
+    const fileSizeBytes = normaliseFileSizeBytes(payload.fileSizeBytes);
     stmts.setFilePath.run({
         urlId: payload.urlId,
-        filePath: payload.filePath
+        filePath,
+        fileSizeBytes
     });
 }
 
@@ -233,7 +277,7 @@ export function clearDownloadFilePath(urlId: string): void {
 
     const db = assertDb();
     const stmts = ensureStatements(db);
-    stmts.setFilePath.run({ urlId, filePath: '' });
+    stmts.setFilePath.run({ urlId, filePath: '', fileSizeBytes: null });
 }
 
 export function recordDownloadError(payload: DownloadErrorPayload): void {
@@ -360,7 +404,8 @@ export function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }: Se
       last_error AS lastError,
       created_at AS createdAt,
       updated_at AS updatedAt,
-      file_path AS filePath
+      file_path AS filePath,
+      file_size_bytes AS fileSizeBytes
     FROM downloads
     ${whereClause}
     ORDER BY datetime(created_at) DESC, datetime(updated_at) DESC

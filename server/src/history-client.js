@@ -45,6 +45,22 @@
     return item && item.status === "completed" ? 100 : 0;
   }
 
+  function formatFileSize(bytes) {
+    if (bytes === null || bytes === undefined) {
+      return null;
+    }
+    const numeric = typeof bytes === "number" ? bytes : Number(bytes);
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return null;
+    }
+    const megabytes = numeric / (1024 * 1024);
+    if (megabytes >= 1000) {
+      const gigabytes = megabytes / 1024;
+      return gigabytes.toFixed(2) + " GB";
+    }
+    return megabytes.toFixed(2) + " MB";
+  }
+
   function validateUrl(value) {
     try {
       const parsed = new URL(value);
@@ -287,7 +303,6 @@
       const title = (item.title && item.title.trim()) || "";
       const urlId = item.urlId || "";
       const status = item.status || "unknown";
-      const lastError = item.lastError || "";
       const createdAt = item.createdAt || "-";
       const updatedAt = item.updatedAt || "-";
       const sourceUrl = item.url || "";
@@ -297,6 +312,20 @@
       const fileAvailable = Boolean(item.filePath);
       const downloadDisabled = !fileAvailable || status !== "completed";
       const downloadTitle = downloadDisabled ? "완료된 항목만 다운로드할 수 있습니다." : "파일 다운로드";
+
+      var rawSize = item.fileSizeBytes;
+      var sizeValue = null;
+      if (typeof rawSize === "number") {
+        sizeValue = rawSize;
+      } else if (rawSize !== null && rawSize !== undefined) {
+        var parsedSize = Number(rawSize);
+        sizeValue = Number.isFinite(parsedSize) && parsedSize >= 0 ? parsedSize : null;
+      }
+      const fileSizeText = formatFileSize(sizeValue);
+      const fileSizeTitle =
+        fileSizeText && typeof sizeValue === "number" && Number.isFinite(sizeValue)
+          ? sizeValue.toLocaleString() + " bytes"
+          : undefined;
 
       return h(
         "tr",
@@ -327,8 +356,10 @@
         ),
         h(
           "td",
-          { className: "error", "data-label": "오류" },
-          lastError ? h("span", { title: lastError }, lastError) : h("span", { className: "muted" }, "-")
+          { className: "size", "data-label": "크기" },
+          fileSizeText
+            ? h("span", { title: fileSizeTitle }, fileSizeText)
+            : h("span", { className: "muted" }, "-")
         ),
         h("td", { className: "created", "data-label": "생성일" }, createdAt),
         h("td", { className: "updated", "data-label": "업데이트" }, updatedAt),
@@ -366,7 +397,7 @@
           h("th", null, "제목"),
           h("th", null, "상태"),
           h("th", null, "진행률"),
-          h("th", null, "오류"),
+          h("th", null, "크기"),
           h("th", null, "생성일"),
           h("th", null, "업데이트"),
           h("th", { className: "actions-column" }, "작업")
@@ -562,6 +593,15 @@
             }
             if (Object.prototype.hasOwnProperty.call(state, "filePath")) {
               updated.filePath = typeof state.filePath === "string" ? state.filePath : null;
+            }
+            if (Object.prototype.hasOwnProperty.call(state, "fileSizeBytes")) {
+              var rawSizeUpdate = state.fileSizeBytes;
+              if (rawSizeUpdate === null || rawSizeUpdate === undefined) {
+                updated.fileSizeBytes = null;
+              } else {
+                var numericSize = Number(rawSizeUpdate);
+                updated.fileSizeBytes = Number.isFinite(numericSize) && numericSize >= 0 ? numericSize : null;
+              }
             }
             if (Object.prototype.hasOwnProperty.call(state, "error")) {
               updated.lastError = state.error ? String(state.error) : "";

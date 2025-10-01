@@ -28,6 +28,7 @@ export interface DownloadSnapshot {
     percent: number;
     filePath?: string;
     error?: string;
+    fileSizeBytes?: number | null;
 }
 
 type DownloadManagerEvents = {
@@ -100,6 +101,48 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         }
 
         return absolute;
+    }
+
+    private prepareFileMetadata(filePath: string | undefined | null): {
+        absolute: string;
+        client: string;
+        size: number | null;
+    } {
+        const raw = typeof filePath === 'string' ? filePath.trim() : '';
+        if (!raw) {
+            return { absolute: '', client: '', size: null };
+        }
+
+        const resolved = this.resolveDownloadPath(raw);
+        const absolute = resolved || raw;
+
+        let client = '';
+        if (resolved) {
+            const relative = path.relative(this.config.downloadDir, resolved);
+            if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+                client = relative;
+            } else {
+                client = resolved;
+            }
+        } else {
+            client = raw;
+        }
+
+        let size: number | null = null;
+        if (resolved) {
+            try {
+                const stats = fs.statSync(resolved);
+                if (typeof stats.isFile === 'function') {
+                    size = stats.isFile() ? stats.size : null;
+                } else {
+                    size = stats.size ?? null;
+                }
+            } catch (error) {
+                size = null;
+            }
+        }
+
+        return { absolute, client, size };
     }
 
     private sanitisePathSegment(value: string | undefined, fallback: string): string {
@@ -341,11 +384,20 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             const destMarker = 'Destination:';
             if (line.includes(destMarker)) {
                 const candidate = line.slice(line.indexOf(destMarker) + destMarker.length).trim();
-                const resolvedPath = this.resolveDownloadPath(candidate);
-                if (resolvedPath) {
-                    downloadEntry.filePath = resolvedPath;
-                    captureResolvedTitle(this.deriveTitleFromPath(resolvedPath));
-                    recordDownloadFilePath({ urlId: request.urlId, filePath: resolvedPath });
+                const metadata = this.prepareFileMetadata(candidate);
+                if (metadata.absolute) {
+                    downloadEntry.filePath = metadata.absolute;
+                }
+                const titleSource = metadata.absolute || metadata.client;
+                if (titleSource) {
+                    captureResolvedTitle(this.deriveTitleFromPath(titleSource));
+                }
+                if (metadata.client) {
+                    recordDownloadFilePath({
+                        urlId: request.urlId,
+                        filePath: metadata.client,
+                        fileSizeBytes: metadata.size
+                    });
                 }
             }
 
@@ -354,10 +406,27 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
               title = title.slice(0, title.length - 1);
               const mergedPath = `/downloads/${title}`;
               captureResolvedTitle(title);
-              downloadEntry.filePath = mergedPath;
-              updateState({ status: 'completed', percent: 100, filePath: mergedPath });
-              recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: mergedPath });
-              emitFinished({ status: 'completed', percent: 100, filePath: mergedPath, title });
+              const metadata = this.prepareFileMetadata(mergedPath);
+              downloadEntry.filePath = metadata.absolute || mergedPath;
+              updateState({
+                  status: 'completed',
+                  percent: 100,
+                  filePath: metadata.client,
+                  fileSizeBytes: metadata.size
+              });
+              recordDownloadCompleted({
+                  urlId: request.urlId,
+                  url: request.url,
+                  filePath: metadata.client,
+                  fileSizeBytes: metadata.size
+              });
+              emitFinished({
+                  status: 'completed',
+                  percent: 100,
+                  filePath: metadata.client,
+                  fileSizeBytes: metadata.size,
+                  title
+              });
               this.finish(request.urlId);
             } else if (/has already been downloaded/u.test(line)) {
                 const inferredPath =
@@ -368,11 +437,29 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                         urlId: request.urlId,
                         ext: 'mp4'
                     });
-                captureResolvedTitle(downloadEntry.resolvedTitle || this.deriveTitleFromPath(inferredPath));
-                downloadEntry.filePath = inferredPath;
-                updateState({ status: 'completed', percent: 100, filePath: inferredPath });
-                recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: inferredPath });
-                emitFinished({ status: 'completed', percent: 100, filePath: inferredPath, title: downloadEntry.resolvedTitle });
+                const metadata = this.prepareFileMetadata(inferredPath);
+                const titleSource = metadata.absolute || metadata.client || inferredPath;
+                captureResolvedTitle(downloadEntry.resolvedTitle || this.deriveTitleFromPath(titleSource));
+                downloadEntry.filePath = metadata.absolute || inferredPath;
+                updateState({
+                    status: 'completed',
+                    percent: 100,
+                    filePath: metadata.client,
+                    fileSizeBytes: metadata.size
+                });
+                recordDownloadCompleted({
+                    urlId: request.urlId,
+                    url: request.url,
+                    filePath: metadata.client,
+                    fileSizeBytes: metadata.size
+                });
+                emitFinished({
+                    status: 'completed',
+                    percent: 100,
+                    filePath: metadata.client,
+                    fileSizeBytes: metadata.size,
+                    title: downloadEntry.resolvedTitle
+                });
                 this.finish(request.urlId);
             }
         };
@@ -426,10 +513,31 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                         urlId: request.urlId,
                         ext: path.extname(downloadEntry.filePath || '') || 'mp4'
                     });
-                const finalTitle = downloadEntry.resolvedTitle || this.deriveTitleFromPath(finalPath);
+                const metadata = this.prepareFileMetadata(finalPath);
+                const finalTitle =
+                    downloadEntry.resolvedTitle ||
+                    this.deriveTitleFromPath(metadata.absolute || metadata.client || finalPath);
                 captureResolvedTitle(finalTitle);
-                recordDownloadCompleted({ urlId: request.urlId, url: request.url, filePath: finalPath });
-                emitFinished({ percent: 100, status: 'completed', filePath: finalPath, title: downloadEntry.resolvedTitle });
+                downloadEntry.filePath = metadata.absolute || finalPath;
+                updateState({
+                    status: 'completed',
+                    percent: 100,
+                    filePath: metadata.client,
+                    fileSizeBytes: metadata.size
+                });
+                recordDownloadCompleted({
+                    urlId: request.urlId,
+                    url: request.url,
+                    filePath: metadata.client,
+                    fileSizeBytes: metadata.size
+                });
+                emitFinished({
+                    percent: 100,
+                    status: 'completed',
+                    filePath: metadata.client,
+                    fileSizeBytes: metadata.size,
+                    title: downloadEntry.resolvedTitle
+                });
             } else {
                 const errorMessage = `yt-dlp exited with code ${code}`;
                 updateState({ status: 'error', error: errorMessage, percent: 0 });

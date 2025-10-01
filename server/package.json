@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc && node dist/build/copy-history-assets.js",
+    "build": "tsc",
+    "postbuild": "node dist/build/copy-history-assets.js",
     "start": "node dist/index.js",
     "dev": "ts-node --transpile-only src/index.ts"
   },

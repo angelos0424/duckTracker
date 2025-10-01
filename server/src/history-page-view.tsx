@@ -1,5 +1,4 @@
 import React from 'react';
-import { URLSearchParams } from 'node:url';
 import type { DownloadRecordRow } from './database';
 
 function buildPageLink(baseParams: URLSearchParams, overrides: Record<string, string | number | null | undefined>): string {
@@ -20,6 +19,22 @@ function formatProgress(value: unknown): number {
     return 0;
   }
   return Math.min(100, Math.max(0, Math.round(value as number)));
+}
+
+function formatFileSize(bytes: unknown): string | null {
+  if (bytes === null || bytes === undefined) {
+    return null;
+  }
+  const numeric = typeof bytes === 'number' ? bytes : Number(bytes);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  const megabytes = numeric / (1024 * 1024);
+  if (megabytes >= 1000) {
+    const gigabytes = megabytes / 1024;
+    return `${gigabytes.toFixed(2)} GB`;
+  }
+  return `${megabytes.toFixed(2)} MB`;
 }
 
 function getProgressFromItem(item: DownloadRecordRow & { percent?: number | null }): number {
@@ -140,7 +155,6 @@ const TableRow: React.FC<{ item: DownloadRecordRow & { percent?: number | null }
   const title = item.title?.trim() || '';
   const urlId = item.urlId || '';
   const status = item.status || 'unknown';
-  const lastError = item.lastError || '';
   const createdAt = item.createdAt || '-';
   const updatedAt = item.updatedAt || '-';
   const fileAvailable = Boolean(item.filePath);
@@ -150,6 +164,11 @@ const TableRow: React.FC<{ item: DownloadRecordRow & { percent?: number | null }
   const progressValue = getProgressFromItem(item);
   const downloadDisabled = !fileAvailable || status !== 'completed';
   const downloadTitle = downloadDisabled ? '완료된 항목만 다운로드할 수 있습니다.' : '파일 다운로드';
+  const fileSizeText = formatFileSize(item.fileSizeBytes);
+  const fileSizeTitle =
+    fileSizeText && typeof item.fileSizeBytes === 'number'
+      ? `${item.fileSizeBytes.toLocaleString()} bytes`
+      : undefined;
 
   return (
     <tr data-url-id={urlId} data-status={status} data-source-url={sourceUrl} data-file-path={item.filePath || ''}>
@@ -175,8 +194,12 @@ const TableRow: React.FC<{ item: DownloadRecordRow & { percent?: number | null }
       <td className="progress" data-label="진행률">
         <ProgressCell progress={progressValue} />
       </td>
-      <td className="error" data-label="오류">
-        {lastError ? <span title={lastError}>{lastError}</span> : <span className="muted">-</span>}
+      <td className="size" data-label="크기">
+        {fileSizeText ? (
+          <span title={fileSizeTitle}>{fileSizeText}</span>
+        ) : (
+          <span className="muted">-</span>
+        )}
       </td>
       <td className="created" data-label="생성일">{createdAt}</td>
       <td className="updated" data-label="업데이트">{updatedAt}</td>
@@ -199,7 +222,7 @@ const HistoryTable: React.FC<{ items: (DownloadRecordRow & { percent?: number | 
         <th>제목</th>
         <th>상태</th>
         <th>진행률</th>
-        <th>오류</th>
+        <th>크기</th>
         <th>생성일</th>
         <th>업데이트</th>
         <th className="actions-column">작업</th>
