@@ -13,5 +13,4 @@ function copyAsset(relativeSource: string, relativeDestination: string): void {
     fs.copyFileSync(sourcePath, destinationPath);
 }
 
-copyAsset('history-client.js', 'history-client.js');
 copyAsset('history-page.css', 'history-page.css');
