@@ -1,6 +1,7 @@
 import React from 'react';
 import type { HistoryItem } from '../types.js';
 import { formatFileSize, getProgressFromItem } from '../utils/format.js';
+import { getStatusLabel } from '../utils/status.js';
 import { ProgressCell } from './ProgressCell.js';
 import { ActionsCell, type ActionsCellHandlers, type ActionsCellState } from './ActionsCell.js';
 
@@ -15,6 +16,7 @@ export const TableRow: React.FC<TableRowProps> = ({ item, enableFormatSelection,
     const title = item.title?.trim() || '';
     const urlId = item.urlId || '';
     const status = item.status || 'unknown';
+    const statusLabel = getStatusLabel(status);
     const createdAt = item.createdAt || '-';
     const updatedAt = item.updatedAt || '-';
     const fileAvailable = Boolean(item.filePath);
@@ -49,7 +51,7 @@ export const TableRow: React.FC<TableRowProps> = ({ item, enableFormatSelection,
                 </div>
             </td>
             <td className="status" data-label="상태">
-                <span className={statusClass}>{status}</span>
+                <span className={statusClass}>{statusLabel}</span>
             </td>
             <td className="progress" data-label="진행률">
                 <ProgressCell progress={progressValue} />
