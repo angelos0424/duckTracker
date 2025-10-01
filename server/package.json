@@ -1,5 +1,5 @@
 {
-  "name": "ducktracker-server",
+  "name": "ducktracker",
   "version": "1.0.0",
   "description": "Lightweight download coordination server for DuckTracker",
   "main": "dist/index.js",

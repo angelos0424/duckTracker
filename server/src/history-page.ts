@@ -10,6 +10,7 @@ export interface RenderHistoryPageOptions {
   pageSize: number;
   searchTerm?: string;
   wsPath?: string;
+  checkFormatList: boolean;
 }
 
 function normaliseWsPath(path?: string): string {
@@ -25,7 +26,8 @@ function buildHistoryPageProps({
   page,
   pageSize,
   searchTerm,
-  wsPath
+  wsPath,
+  checkFormatList
 }: RenderHistoryPageOptions): HistoryPageProps {
   const safePageSize = Math.max(1, pageSize);
   const totalPages = Math.max(1, Math.ceil(total / safePageSize));
@@ -41,7 +43,8 @@ function buildHistoryPageProps({
     showingFrom,
     showingTo,
     searchTerm,
-    wsPath: normaliseWsPath(wsPath)
+    wsPath: normaliseWsPath(wsPath),
+    checkFormatList
   };
 }
 

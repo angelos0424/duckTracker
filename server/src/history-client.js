@@ -97,6 +97,44 @@
     }
   }
 
+  function normaliseFormatOptions(options) {
+    if (!Array.isArray(options)) {
+      return [];
+    }
+
+    return options
+      .map(function (item) {
+        if (!item || !item.id) {
+          return null;
+        }
+
+        const id = String(item.id);
+        const resolution = typeof item.resolution === "string" ? item.resolution : "";
+        const rawTbr = typeof item.tbr === "number" && Number.isFinite(item.tbr) ? item.tbr : null;
+        const ext = typeof item.ext === "string" ? item.ext : "";
+        const rawFilesize = typeof item.filesize === "number" && Number.isFinite(item.filesize) ? item.filesize : null;
+        const label = typeof item.label === "string" && item.label.trim()
+          ? item.label.trim()
+          : [resolution, rawTbr !== null ? String(rawTbr) : "", ext, rawFilesize !== null ? String(rawFilesize) : ""]
+              .filter(function (part) {
+                return part !== "";
+              })
+              .join("|");
+
+        return {
+          id: id,
+          label: label || id,
+          resolution: resolution,
+          tbr: rawTbr,
+          ext: ext,
+          filesize: rawFilesize
+        };
+      })
+      .filter(function (entry) {
+        return Boolean(entry);
+      });
+  }
+
   function extractFilename(response, fallback) {
     const disposition = response.headers.get("Content-Disposition");
     if (!disposition) {
@@ -170,13 +208,40 @@
     function ActionsCell(props) {
       const status = props.item.status || "";
       const isActive = status === "downloading" || status === "queued";
+      const isFormatSelect = status === "format-select";
       const fileExists = Boolean(props.item.filePath);
       const downloadBusy = Boolean(props.isDownloadPending);
       const stopBusy = Boolean(props.isStopPending);
       const resumeBusy = Boolean(props.isResumePending);
       const removeBusy = Boolean(props.isRemovePending);
       const deleteBusy = Boolean(props.isDeletePending);
-      const canDownload = !props.downloadDisabled && !downloadBusy;
+      const rawFormatOptions = Array.isArray(props.item.formatOptions) ? props.item.formatOptions : [];
+      const formatSelectionAvailable = Boolean(props.onSelectFormat) && rawFormatOptions.length > 0;
+      const hasFormatOptions = formatSelectionAvailable;
+      const formatBusy = Boolean(props.isFormatPending);
+      const baseCanDownload = !props.downloadDisabled && !downloadBusy;
+      const effectiveDownloadBusy = isFormatSelect && formatSelectionAvailable ? formatBusy : downloadBusy;
+      const downloadButtonDisabled = isFormatSelect
+        ? formatSelectionAvailable
+          ? !hasFormatOptions || formatBusy
+          : !baseCanDownload
+        : !baseCanDownload;
+      const downloadButtonTitle = isFormatSelect
+        ? formatSelectionAvailable
+          ? hasFormatOptions ? "포맷 선택" : "선택 가능한 포맷이 없습니다."
+          : props.downloadTitle
+        : props.downloadTitle;
+      const onDownloadClick = isFormatSelect && formatSelectionAvailable
+        ? function (event) {
+            event.preventDefault();
+            props.onSelectFormat(props.urlId);
+          }
+        : props.onDownload
+        ? function (event) {
+            event.preventDefault();
+            props.onDownload(props.urlId);
+          }
+        : undefined;
 
       return h(
         Fragment,
@@ -209,7 +274,7 @@
             "data-url-id": props.urlId,
             title: "다운로드 재시작",
             "aria-label": "다운로드 재시작",
-            disabled: isActive || resumeBusy,
+            disabled: isActive || resumeBusy || isFormatSelect,
             onClick: props.onResume
               ? function (event) {
                   event.preventDefault();
@@ -228,17 +293,12 @@
           {
             className: "icon-button download-button",
             "data-url-id": props.urlId,
-            title: props.downloadTitle,
-            "aria-label": props.downloadTitle,
-            disabled: !canDownload,
-            "data-loading": downloadBusy ? "true" : undefined,
-            "aria-busy": downloadBusy ? "true" : undefined,
-            onClick: props.onDownload
-              ? function (event) {
-                  event.preventDefault();
-                  props.onDownload(props.urlId);
-                }
-              : undefined
+            title: downloadButtonTitle,
+            "aria-label": downloadButtonTitle,
+            disabled: downloadButtonDisabled,
+            "data-loading": effectiveDownloadBusy ? "true" : undefined,
+            "aria-busy": effectiveDownloadBusy ? "true" : undefined,
+            onClick: onDownloadClick
           },
           h("span", { className: "spinner", "aria-hidden": "true" }),
           h(
@@ -254,7 +314,7 @@
             "data-url-id": props.urlId,
             title: fileExists ? "파일만 삭제" : "삭제할 파일이 없습니다.",
             "aria-label": "파일 삭제",
-            disabled: !fileExists || removeBusy,
+            disabled: !fileExists || removeBusy || isFormatSelect,
             onClick: props.onRemoveFile
               ? function (event) {
                   event.preventDefault();
@@ -380,7 +440,9 @@
             isStopPending: stopPending[urlId],
             isResumePending: resumePending[urlId],
             isRemovePending: removePending[urlId],
-            isDeletePending: deletePending[urlId]
+            isDeletePending: deletePending[urlId],
+            onSelectFormat: props.onSelectFormat,
+            isFormatPending: props.currentFormatUrlId === urlId && props.isFormatSubmitting
           })
         )
       );
@@ -442,7 +504,10 @@
               stopPending: props.stopPending,
               resumePending: props.resumePending,
               removePending: props.removePending,
-              deletePending: props.deletePending
+              deletePending: props.deletePending,
+              onSelectFormat: props.onSelectFormat,
+              currentFormatUrlId: props.currentFormatUrlId,
+              isFormatSubmitting: props.isFormatSubmitting
             });
           })
         )
@@ -486,6 +551,17 @@
     }
 
     function AddDownloadDialog(props) {
+      const formatEnabled = Boolean(props.enableFormatSelection);
+      const mode = formatEnabled ? props.mode || "url" : "url";
+      const isFormatMode = formatEnabled && mode === "format";
+      const normalisedOptions = normaliseFormatOptions(props.formatOptions || []);
+      const formatOptions = isFormatMode ? normalisedOptions : [];
+      const confirmLabel = props.isSubmitting
+        ? "요청 중..."
+        : isFormatMode
+        ? "다운로드 시작"
+        : "다운로드 요청";
+
       return h(
         "div",
         {
@@ -500,9 +576,20 @@
         },
         h(
           "div",
-          { className: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "add-download-title" },
-          h("h2", { id: "add-download-title" }, "다운로드 추가"),
-          h("p", null, "다운로드할 영상의 URL을 입력하세요."),
+          {
+            className: "dialog",
+            role: "dialog",
+            "aria-modal": "true",
+            "aria-labelledby": "add-download-title"
+          },
+          h("h2", { id: "add-download-title" }, isFormatMode ? "포맷 선택" : "다운로드 추가"),
+          h(
+            "p",
+            null,
+            isFormatMode
+              ? (props.formatTitle ? '"' + props.formatTitle + '"에 사용할 포맷을 선택하세요.' : "다운로드할 포맷을 선택하세요.")
+              : "다운로드할 영상의 URL을 입력하세요."
+          ),
           h(
             "form",
             {
@@ -514,24 +601,83 @@
                 }
               }
             },
-            h("label", { htmlFor: "download-url", className: "visually-hidden" }, "다운로드 URL"),
-            h("input", {
-              type: "url",
-              id: "download-url",
-              name: "url",
-              placeholder: "https://",
-              required: true,
-              value: props.urlValue,
-              onChange: function (event) {
-                if (props.onUrlChange) {
-                  props.onUrlChange(event.target.value);
-                }
-              }
-            }),
-            h("p", { className: "form-helper", "data-error-message": true, hidden: !props.errorMessage }, props.errorMessage || "유효한 URL을 입력해주세요."),
+            isFormatMode
+              ? h(
+                  Fragment,
+                  null,
+                  formatOptions.length > 0
+                    ? h(
+                        "div",
+                        { className: "format-options" },
+                        formatOptions.map(function (option) {
+                          return h(
+                            "label",
+                            { className: "format-option", key: option.id },
+                            h("input", {
+                              type: "radio",
+                              name: "formatOption",
+                              value: option.id,
+                              checked: props.selectedFormatId === option.id,
+                              onChange: function () {
+                                if (props.onSelectFormat) {
+                                  props.onSelectFormat(option.id);
+                                }
+                              }
+                            }),
+                            h("span", { className: "format-option-label" }, option.label)
+                          );
+                        })
+                      )
+                    : h(
+                        "p",
+                        { className: "form-helper" },
+                        "선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요."
+                      )
+                )
+              : h(
+                  Fragment,
+                  null,
+                  h("label", { htmlFor: "download-url", className: "visually-hidden" }, "다운로드 URL"),
+                  h("input", {
+                    type: "url",
+                    id: "download-url",
+                    name: "url",
+                    placeholder: "https://",
+                    required: true,
+                    value: props.urlValue,
+                    onChange: function (event) {
+                      if (props.onUrlChange) {
+                        props.onUrlChange(event.target.value);
+                      }
+                    }
+                  })
+                ),
+            h(
+              "p",
+              {
+                className: "form-helper",
+                "data-error-message": true,
+                hidden: !props.errorMessage
+              },
+              props.errorMessage || (isFormatMode ? "다운로드할 포맷을 선택해주세요." : "유효한 URL을 입력해주세요.")
+            ),
             h(
               "div",
               { className: "dialog-buttons" },
+              isFormatMode && props.onBack
+                ? h(
+                    "button",
+                    {
+                      type: "button",
+                      className: "secondary",
+                      onClick: function (event) {
+                        event.preventDefault();
+                        props.onBack();
+                      }
+                    },
+                    "이전"
+                  )
+                : null,
               h(
                 "button",
                 {
@@ -543,11 +689,16 @@
                     if (props.onClose) {
                       props.onClose();
                     }
-                  }
+                  },
+                  disabled: props.isSubmitting
                 },
                 "취소"
               ),
-              h("button", { type: "submit", className: "primary", disabled: props.isSubmitting }, props.isSubmitting ? "요청 중..." : "다운로드 요청")
+              h(
+                "button",
+                { type: "submit", className: "primary", disabled: props.isSubmitting || (isFormatMode && formatOptions.length === 0) },
+                confirmLabel
+              )
             )
           )
         )
@@ -555,20 +706,45 @@
     }
 
     function HistoryApp(props) {
+      const checkFormatList = Boolean(props.checkFormatList);
       const [items, setItems] = useState(function () {
         return (props.items || []).map(function (item) {
           return Object.assign({}, item);
         });
       });
       const [dialogOpen, setDialogOpen] = useState(false);
+      const [dialogMode, setDialogMode] = useState("url");
       const [urlValue, setUrlValue] = useState("");
       const [formError, setFormError] = useState("");
       const [isSubmitting, setIsSubmitting] = useState(false);
+      const [formatSelection, setFormatSelection] = useState(null);
+      const [selectedFormatId, setSelectedFormatId] = useState("");
       const [downloadPending, setDownloadPending] = useState({});
       const [stopPending, setStopPending] = useState({});
       const [resumePending, setResumePending] = useState({});
       const [removePending, setRemovePending] = useState({});
       const [deletePending, setDeletePending] = useState({});
+
+      const handleSelectFormat = useCallback(function (formatId) {
+        setSelectedFormatId(formatId);
+        if (formError) {
+          setFormError("");
+        }
+      }, [formError]);
+
+      const handleFormatBack = useCallback(function () {
+        if (!checkFormatList) {
+          return;
+        }
+        if (formatSelection && typeof formatSelection.url === "string") {
+          setUrlValue(formatSelection.url);
+        }
+        setDialogMode("url");
+        setFormatSelection(null);
+        setSelectedFormatId("");
+        setFormError("");
+        setIsSubmitting(false);
+      }, [checkFormatList, formatSelection]);
 
       const updateItemState = useCallback(function (state) {
         if (!state || !state.urlId) {
@@ -609,13 +785,39 @@
             if (Object.prototype.hasOwnProperty.call(state, "lastError")) {
               updated.lastError = state.lastError ? String(state.lastError) : "";
             }
+            if (Object.prototype.hasOwnProperty.call(state, "formatOptions")) {
+              if (Array.isArray(state.formatOptions)) {
+                updated.formatOptions = normaliseFormatOptions(state.formatOptions);
+              } else {
+                delete updated.formatOptions;
+              }
+            }
             if (Object.prototype.hasOwnProperty.call(state, "percent")) {
               const numeric = Number(state.percent);
               updated.percent = Number.isFinite(numeric) ? numeric : 0;
             }
             return updated;
           });
-          return found ? next : previous;
+          if (found) {
+            return next;
+          }
+
+          const fallbackPercent = Number.isFinite(Number(state && state.percent)) ? Number(state.percent) : 0;
+          const initialEntry = {
+            urlId: state.urlId,
+            url: typeof state.url === "string" ? state.url : "",
+            title: typeof state.title === "string" ? state.title : "",
+            status: typeof state.status === "string" ? state.status : "queued",
+            lastError: state && state.error ? String(state.error) : state && state.lastError ? String(state.lastError) : "",
+            createdAt: state && state.createdAt ? String(state.createdAt) : new Date().toISOString(),
+            updatedAt: state && state.updatedAt ? String(state.updatedAt) : new Date().toISOString(),
+            filePath: typeof state.filePath === "string" ? state.filePath : null,
+            fileSizeBytes: Number.isFinite(Number(state && state.fileSizeBytes)) ? Number(state.fileSizeBytes) : null,
+            percent: fallbackPercent,
+            formatOptions: Array.isArray(state && state.formatOptions) ? normaliseFormatOptions(state.formatOptions) : undefined
+          };
+
+          return [initialEntry].concat(previous);
         });
       }, []);
 
@@ -871,6 +1073,20 @@
                 }
                 if (state) {
                   updateItemState(state);
+                  if (state.requiresFormatSelection) {
+                    const options = normaliseFormatOptions(state.formatOptions || []);
+                    setFormatSelection({
+                      url: typeof state.url === "string" ? state.url : "",
+                      urlId: state.urlId,
+                      title: typeof state.title === "string" ? state.title : "",
+                      options: options
+                    });
+                    setSelectedFormatId(options.length > 0 ? options[0].id : "");
+                    setDialogMode("format");
+                    setDialogOpen(true);
+                    setFormError(options.length === 0 ? "선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요." : "");
+                    setIsSubmitting(false);
+                  }
                 }
               });
           })
@@ -884,28 +1100,149 @@
 
       const handleOpenDialog = useCallback(function () {
         setDialogOpen(true);
+        setDialogMode("url");
+        setFormatSelection(null);
         setFormError("");
         setUrlValue("");
+        setSelectedFormatId("");
+        setIsSubmitting(false);
       }, []);
 
       const handleCloseDialog = useCallback(function () {
         setDialogOpen(false);
+        setDialogMode("url");
         setFormError("");
         setUrlValue("");
+        setFormatSelection(null);
+        setSelectedFormatId("");
+        setIsSubmitting(false);
       }, []);
 
       const handleDialogSubmit = useCallback(function () {
+        if (!checkFormatList) {
+          const trimmed = urlValue.trim();
+          if (!validateUrl(trimmed)) {
+            setFormError("유효한 URL을 입력해주세요.");
+            return;
+          }
+
+          const derivedId = deriveUrlId(trimmed);
+          const payload = { url: trimmed, urlId: derivedId };
+
+          setFormError("");
+          setUrlValue(trimmed);
+          setIsSubmitting(true);
+
+          fetch("/history/request-download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+            .then(function (response) {
+              return response
+                .json()
+                .catch(function () {
+                  return {};
+                })
+                .then(function (data) {
+                  if (!response.ok) {
+                    window.alert((data && data.error) || "다운로드 요청에 실패했습니다.");
+                    return;
+                  }
+
+                  handleCloseDialog();
+                  window.location.reload();
+                });
+            })
+            .catch(function () {
+              window.alert("다운로드 요청 중 오류가 발생했습니다.");
+            })
+            .finally(function () {
+              setIsSubmitting(false);
+            });
+
+          return;
+        }
+
+        if (dialogMode === "format") {
+          if (!formatSelection || !formatSelection.urlId) {
+            setFormError("선택할 항목을 찾을 수 없습니다.");
+            return;
+          }
+          if (!selectedFormatId) {
+            setFormError("다운로드할 포맷을 선택해주세요.");
+            return;
+          }
+
+          setFormError("");
+          setIsSubmitting(true);
+
+          fetch("/history/request-download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: formatSelection.url,
+              urlId: formatSelection.urlId,
+              formatId: selectedFormatId
+            })
+          })
+            .then(function (response) {
+              return response
+                .json()
+                .catch(function () {
+                  return {};
+                })
+                .then(function (data) {
+                  if (!response.ok) {
+                    window.alert((data && data.error) || "다운로드 요청에 실패했습니다.");
+                    return;
+                  }
+
+                  if (data && data.requiresFormatSelection) {
+                    updateItemState(data);
+                    const nextOptions = normaliseFormatOptions(data.formatOptions || []);
+                    setFormatSelection({
+                      url: formatSelection.url,
+                      urlId: formatSelection.urlId,
+                      title: data.title || formatSelection.title || "",
+                      options: nextOptions
+                    });
+                    setSelectedFormatId(nextOptions.length > 0 ? nextOptions[0].id : "");
+                    setFormError(nextOptions.length === 0 ? "선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요." : "");
+                    return;
+                  }
+
+                  handleCloseDialog();
+                  window.location.reload();
+                });
+            })
+            .catch(function () {
+              window.alert("다운로드 요청 중 오류가 발생했습니다.");
+            })
+            .finally(function () {
+              setIsSubmitting(false);
+            });
+
+          return;
+        }
+
         const trimmed = urlValue.trim();
         if (!validateUrl(trimmed)) {
           setFormError("유효한 URL을 입력해주세요.");
           return;
         }
+
+        const derivedId = deriveUrlId(trimmed);
+        const payload = { url: trimmed, urlId: derivedId };
+
         setFormError("");
+        setUrlValue(trimmed);
         setIsSubmitting(true);
+
         fetch("/history/request-download", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: trimmed, urlId: deriveUrlId(trimmed) })
+          body: JSON.stringify(payload)
         })
           .then(function (response) {
             return response
@@ -918,6 +1255,24 @@
                   window.alert((data && data.error) || "다운로드 요청에 실패했습니다.");
                   return;
                 }
+
+                if (data && data.requiresFormatSelection) {
+                  updateItemState(data);
+                  const options = normaliseFormatOptions(data.formatOptions || []);
+                  if (checkFormatList) {
+                    setDialogMode("format");
+                    setFormatSelection({
+                      url: payload.url,
+                      urlId: payload.urlId,
+                      title: data.title || "",
+                      options: options
+                    });
+                    setSelectedFormatId(options.length > 0 ? options[0].id : "");
+                    setFormError(options.length === 0 ? "선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요." : "");
+                    return;
+                  }
+                }
+
                 handleCloseDialog();
                 window.location.reload();
               });
@@ -928,7 +1283,45 @@
           .finally(function () {
             setIsSubmitting(false);
           });
-      }, [urlValue, handleCloseDialog]);
+      }, [checkFormatList, dialogMode, formatSelection, selectedFormatId, urlValue, handleCloseDialog, updateItemState]);
+
+      const handleFormatSelectionRequest = useCallback(function (urlId) {
+        if (!checkFormatList) {
+          handleDownload(urlId);
+          return;
+        }
+
+        if (!urlId) {
+          return;
+        }
+
+        const match = (items || []).find(function (entry) {
+          return entry && entry.urlId === urlId;
+        });
+
+        if (!match) {
+          window.alert("선택할 항목을 찾을 수 없습니다.");
+          return;
+        }
+
+        const options = normaliseFormatOptions(match.formatOptions || []);
+        if (options.length === 0) {
+          window.alert("선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요.");
+          return;
+        }
+
+        setFormatSelection({
+          url: typeof match.url === "string" ? match.url : "",
+          urlId: urlId,
+          title: typeof match.title === "string" ? match.title : "",
+          options: options
+        });
+        setSelectedFormatId(options[0] ? options[0].id : "");
+        setDialogMode("format");
+        setDialogOpen(true);
+        setFormError("");
+        setIsSubmitting(false);
+      }, [checkFormatList, handleDownload, items]);
 
       useEffect(function () {
         let active = true;
@@ -1047,7 +1440,10 @@
             stopPending: stopPending,
             resumePending: resumePending,
             removePending: removePending,
-            deletePending: deletePending
+            deletePending: deletePending,
+            onSelectFormat: handleFormatSelectionRequest,
+            currentFormatUrlId: formatSelection ? formatSelection.urlId : null,
+            isFormatSubmitting: dialogMode === "format" && isSubmitting
           }),
           h(
             "div",
@@ -1073,8 +1469,10 @@
         ),
         h(AddDownloadDialog, {
           open: dialogOpen,
+          mode: dialogMode,
           onClose: handleCloseDialog,
           onSubmit: handleDialogSubmit,
+          onBack: dialogMode === "format" ? handleFormatBack : undefined,
           urlValue: urlValue,
           onUrlChange: function (value) {
             setUrlValue(value);
@@ -1083,7 +1481,11 @@
             }
           },
           errorMessage: formError,
-          isSubmitting: isSubmitting
+          isSubmitting: isSubmitting,
+          formatOptions: formatSelection ? formatSelection.options : [],
+          selectedFormatId: selectedFormatId,
+          onSelectFormat: handleSelectFormat,
+          formatTitle: formatSelection ? formatSelection.title : ""
         })
       );
     }

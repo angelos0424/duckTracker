@@ -307,7 +307,8 @@ const HistoryAppShell: React.FC<HistoryPageProps> = ({
   totalPages,
   showingFrom,
   showingTo,
-  searchTerm
+  searchTerm,
+  checkFormatList
 }) => (
   <>
     <div className="card">
@@ -331,11 +332,11 @@ const HistoryAppShell: React.FC<HistoryPageProps> = ({
         <Pagination page={page} totalPages={totalPages} pageSize={pageSize} searchTerm={searchTerm} />
       </div>
     </div>
-    <AddDownloadDialog />
+    <AddDownloadDialog enableFormatSelection={checkFormatList} />
   </>
 );
 
-const AddDownloadDialog: React.FC = () => (
+const AddDownloadDialog: React.FC<{ enableFormatSelection?: boolean }> = () => (
   <div className="dialog-backdrop" data-dialog="add-download" hidden>
     <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="add-download-title">
       <h2 id="add-download-title">다운로드 추가</h2>
@@ -371,6 +372,7 @@ export interface HistoryPageProps {
   showingTo: number;
   searchTerm?: string;
   wsPath: string;
+  checkFormatList: boolean;
 }
 
 function escapeJsonForScript(value: unknown): string {

@@ -162,6 +162,11 @@ tbody tr:hover {
   color: #92400e;
 }
 
+.status-format-select {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 .progress-wrapper {
   display: flex;
   align-items: center;
@@ -369,6 +374,51 @@ tbody tr:hover {
   border-radius: 10px;
   border: 1px solid #d1d5db;
   font-size: 1rem;
+}
+
+.dialog .format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  background: #f9fafb;
+}
+
+.dialog .format-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.dialog .format-option:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.dialog .format-option input[type="radio"] {
+  accent-color: #2563eb;
+}
+
+.dialog .format-option-label {
+  font-size: 0.9rem;
+  color: #1f2937;
+  word-break: break-all;
+}
+
+.dialog .format-option input[type="radio"]:checked + .format-option-label {
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.dialog .format-option input[type="radio"]:focus-visible + .format-option-label {
+  text-decoration: underline;
 }
 
 .dialog-buttons {

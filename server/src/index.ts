@@ -210,7 +210,33 @@ async function handleDownload(_req: IncomingMessage, res: ServerResponse): Promi
 
         console.info('[history] Received download schedule request', { urlId, targetUrl, title });
 
-        const scheduleResult = downloadManager.schedule({ url: targetUrl, urlId, title });
+        const formatId = typeof body.formatId === 'string' ? body.formatId : undefined;
+
+        const scheduleResult = await downloadManager.schedule({ url: targetUrl, urlId, title, formatId });
+
+        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+            const selectionState =
+                downloadManager.getState(urlId) || ({
+                    url: targetUrl,
+                    urlId,
+                    title: scheduleResult.title || title || '',
+                    status: 'format-select',
+                    percent: 0,
+                    formatOptions: scheduleResult.formatOptions || []
+                } as DownloadSnapshot);
+
+            jsonResponse(res, 200, {
+                ...selectionState,
+                requiresFormatSelection: true,
+                queued: false
+            });
+            console.info('[history] Format selection required', {
+                urlId,
+                formatCount: scheduleResult.formatOptions?.length ?? 0
+            });
+            return;
+        }
+
         const updatedState = downloadManager.getState(urlId);
         jsonResponse(res, 200, {
             ...(updatedState ?? {}),
@@ -251,7 +277,33 @@ async function handleHistoryDownloadRequest(req: IncomingMessage, res: ServerRes
             return;
         }
 
-        const scheduleResult = downloadManager.schedule({ url: targetUrl, urlId: derivedId, title: '' });
+        const formatId = typeof body.formatId === 'string' ? body.formatId : undefined;
+
+        const scheduleResult = await downloadManager.schedule({ url: targetUrl, urlId: derivedId, title: '', formatId });
+
+        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+            const selectionState =
+                downloadManager.getState(derivedId) || ({
+                    url: targetUrl,
+                    urlId: derivedId,
+                    title: scheduleResult.title ?? '',
+                    status: 'format-select',
+                    percent: 0,
+                    formatOptions: scheduleResult.formatOptions || []
+                } as DownloadSnapshot);
+
+            jsonResponse(res, 200, {
+                ...selectionState,
+                requiresFormatSelection: true,
+                queued: false
+            });
+            console.info('[history] Format selection required', {
+                urlId: derivedId,
+                formatCount: scheduleResult.formatOptions?.length ?? 0
+            });
+            return;
+        }
+
         const updatedState =
             downloadManager.getState(derivedId) || ({
                 url: targetUrl,
@@ -506,11 +558,30 @@ async function handleRestart(req: IncomingMessage, res: ServerResponse): Promise
             return;
         }
 
-        const scheduleResult = downloadManager.schedule({
+        const scheduleResult = await downloadManager.schedule({
             url: record.url,
             urlId,
             title: record.title || ''
         });
+
+        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+            const selectionState =
+                downloadManager.getState(urlId) || ({
+                    url: record.url,
+                    urlId,
+                    title: scheduleResult.title ?? record.title ?? '',
+                    status: 'format-select',
+                    percent: 0,
+                    formatOptions: scheduleResult.formatOptions || []
+                } as DownloadSnapshot);
+
+            jsonResponse(res, 200, {
+                ...selectionState,
+                requiresFormatSelection: true,
+                queued: false
+            });
+            return;
+        }
 
         const updatedState =
             downloadManager.getState(urlId) || ({
@@ -598,7 +669,8 @@ function handleHistory(_req: IncomingMessage, res: ServerResponse, query: Histor
         page,
         pageSize: result.pageSize,
         searchTerm,
-        wsPath: config.wsPath
+        wsPath: config.wsPath,
+        checkFormatList: config.checkFormatList
     });
 
     htmlResponse(res, 200, html);

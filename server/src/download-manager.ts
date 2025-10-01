@@ -18,10 +18,11 @@ export interface DownloadRequest {
     url: string;
     urlId: string;
     title?: string;
+    formatId?: string;
 }
 
 export interface DownloadSnapshot {
-    status: 'downloading' | 'queued' | 'completed' | 'error' | 'stop';
+    status: 'downloading' | 'queued' | 'completed' | 'error' | 'stop' | 'format-select';
     url: string;
     urlId: string;
     title: string;
@@ -29,6 +30,45 @@ export interface DownloadSnapshot {
     filePath?: string;
     error?: string;
     fileSizeBytes?: number | null;
+    formatOptions?: FormatOptionSummary[];
+}
+
+type FormatProtocol = 'https' | 'mhtml';
+
+interface FormatListItem {
+    formatId: string;
+    resolution: string;
+    tbr: number | null;
+    vcodec: string;
+    ext: string;
+    filesize: number | null;
+    protocol: FormatProtocol;
+    width: number | null;
+    height: number | null;
+    isAudioOnly: boolean;
+    sortScore: number;
+}
+
+interface FormatListResult {
+    id: string;
+    title: string;
+    formats: FormatListItem[];
+}
+
+export interface FormatOptionSummary {
+    id: string;
+    label: string;
+    resolution: string;
+    tbr: number | null;
+    ext: string;
+    filesize: number | null;
+}
+
+interface ScheduleResult {
+    queued: boolean;
+    requiresFormatSelection?: boolean;
+    formatOptions?: FormatOptionSummary[];
+    title?: string;
 }
 
 type DownloadManagerEvents = {
@@ -62,6 +102,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
     private readonly queue: DownloadRequest[] = [];
 
     private readonly state: Map<string, DownloadSnapshot> = new Map();
+
+    private readonly formatCache: Map<string, FormatListResult> = new Map();
 
     constructor(config: ServerConfig) {
         super();
@@ -284,49 +326,261 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         this.start(next);
     }
 
-    private getFormatList(request: DownloadRequest): { format: string; formatId: string } {
+    private async getFormatList(request: DownloadRequest): Promise<FormatListResult> {
         const ytArgs = this.buildFormatArgs(request.url);
 
         let spawnResult: { child: ChildProcess; containerName: string | null };
 
         try {
-          console.log(ytArgs);
-          spawnResult = this.spawnDownloadProcess(ytArgs, request);
-
-          const { child, containerName } = spawnResult;
-
-          child.stdout!!.on('data', (data) => {
-            console.log('data', data.toString());
-          })
-
-          const stdoutReader = child.stdout ? readline.createInterface({ input: child.stdout }) : null;
-          stdoutReader?.on('line', (line) => {
-            if (!line) return;
-            console.log(line);
-          });
-
+            spawnResult = await this.spawnDownloadProcessPromise(ytArgs, request);
         } catch (error) {
-          const err = error as Error;
-          const errorState: DownloadSnapshot = {
-            status: 'error',
-            url: request.url,
-            urlId: request.urlId,
-            title: request.title || '',
-            percent: 0,
-            error: err.message
-          };
-          this.state.set(request.urlId, errorState);
-          this.emit('state', errorState);
-          recordDownloadError({ urlId: request.urlId, url: request.url, error: err.message });
-          return {
-            format : '',
-            formatId: ''
-          };
+            const err = error as Error;
+            const errorState: DownloadSnapshot = {
+                status: 'error',
+                url: request.url,
+                urlId: request.urlId,
+                title: request.title || '',
+                percent: 0,
+                error: err.message
+            };
+            this.state.set(request.urlId, errorState);
+            this.emit('state', errorState);
+            recordDownloadError({ urlId: request.urlId, url: request.url, error: err.message });
+            return {
+                id: request.urlId,
+                title: request.title || '',
+                formats: []
+            };
         }
 
-        return {
-          format : '',
-          formatId: ''
+        const { child } = spawnResult;
+
+        const parseResult = async (): Promise<FormatListResult> => {
+            const manager = this;
+            return await new Promise<FormatListResult>((resolve, reject) => {
+                let stdoutBuffer = '';
+                let stderrBuffer = '';
+
+                if (child.stdout) {
+                    child.stdout.setEncoding('utf8');
+                    child.stdout.on('data', (chunk: string) => {
+                        stdoutBuffer += chunk;
+                    });
+                }
+
+                if (child.stderr) {
+                    child.stderr.setEncoding('utf8');
+                    child.stderr.on('data', (chunk: string) => {
+                        stderrBuffer += chunk;
+                    });
+                }
+
+                child.on('error', (processError) => {
+                    const message = processError instanceof Error ? processError.message : String(processError);
+                    reject(new Error(message));
+                });
+
+                child.on('close', (code) => {
+                    if (code !== 0) {
+                        const trimmed = stderrBuffer.trim();
+                        const message = trimmed ? trimmed : `yt-dlp exited with code ${code}`;
+                        reject(new Error(message));
+                        return;
+                    }
+
+                    const lines = stdoutBuffer
+                        .split(/\r?\n/u)
+                        .map((line) => line.trim())
+                        .filter(Boolean);
+
+                    let parsed: {
+                        id?: string;
+                        title?: string;
+                        fulltitle?: string;
+                        formats?: Array<{
+                            format_id?: string;
+                            resolution?: string;
+                            width?: number;
+                            height?: number;
+                            tbr?: number;
+                            vcodec?: string;
+                            ext?: string;
+                            filesize?: number;
+                            filesize_approx?: number;
+                            protocol?: string;
+                        }>;
+                    } | null = null;
+
+                    for (const line of lines) {
+                        try {
+                            parsed = JSON.parse(line);
+                            break;
+                        } catch (parseError) {
+                            console.warn('[history] Failed to parse yt-dlp format line', { line, error: (parseError as Error).message });
+                        }
+                    }
+
+                    if (!parsed) {
+                        reject(new Error('No parsable format metadata returned from yt-dlp.'));
+                        return;
+                    }
+
+                    const normaliseProtocol = (value: unknown): FormatProtocol => {
+                        if (typeof value !== 'string') {
+                            return 'https';
+                        }
+                        const normalised = value.trim().toLowerCase();
+                        if (normalised.includes('mhtml')) {
+                            return 'mhtml';
+                        }
+                        return 'https';
+                    };
+
+                    const normaliseResolution = (
+                        rawResolution: string,
+                        widthValue: number | null,
+                        heightValue: number | null,
+                        isAudioOnly: boolean
+                    ): string => {
+                        if (isAudioOnly) {
+                            return 'audio only';
+                        }
+
+                        if (rawResolution.trim()) {
+                            return rawResolution.trim();
+                        }
+
+                        if (widthValue && heightValue) {
+                            return `${widthValue}x${heightValue}`;
+                        }
+
+                        if (heightValue) {
+                            return `${heightValue}p`;
+                        }
+
+                        if (widthValue) {
+                            return `${widthValue}p`;
+                        }
+
+                        return '';
+                    };
+
+                    const formatItems: FormatListItem[] = [];
+
+                    if (Array.isArray(parsed.formats)) {
+                        for (const item of parsed.formats) {
+                            const protocol = normaliseProtocol(item.protocol);
+                            if (protocol === 'mhtml') {
+                                continue;
+                            }
+
+                            const formatId = typeof item.format_id === 'string' ? item.format_id : '';
+                            if (!formatId) {
+                                continue;
+                            }
+
+                            const widthValue =
+                                typeof item.width === 'number' && Number.isFinite(item.width) ? item.width : null;
+                            const heightValue =
+                                typeof item.height === 'number' && Number.isFinite(item.height) ? item.height : null;
+                            const rawResolution = typeof item.resolution === 'string' ? item.resolution : '';
+                            const vcodec = typeof item.vcodec === 'string' ? item.vcodec : '';
+                            const isAudioOnly =
+                                rawResolution.toLowerCase().includes('audio') || vcodec.toLowerCase() === 'none';
+
+                            const resolution = normaliseResolution(rawResolution, widthValue, heightValue, isAudioOnly);
+                            const tbr = typeof item.tbr === 'number' && Number.isFinite(item.tbr) ? item.tbr : null;
+                            const ext = typeof item.ext === 'string' ? item.ext : '';
+                            const fileSizeCandidate =
+                                typeof item.filesize === 'number' && Number.isFinite(item.filesize)
+                                    ? item.filesize
+                                    : typeof item.filesize_approx === 'number' && Number.isFinite(item.filesize_approx)
+                                    ? item.filesize_approx
+                                    : null;
+
+                            if (!resolution && !vcodec && !ext) {
+                                continue;
+                            }
+
+                            const sortScore = manager.computeFormatSortScore({
+                                resolution,
+                                width: widthValue,
+                                height: heightValue,
+                                isAudioOnly
+                            });
+
+                            formatItems.push({
+                                formatId,
+                                resolution,
+                                tbr,
+                                vcodec,
+                                ext,
+                                filesize: fileSizeCandidate,
+                                protocol,
+                                width: widthValue,
+                                height: heightValue,
+                                isAudioOnly,
+                                sortScore
+                            });
+                        }
+                    }
+
+                    formatItems.sort((a, b) => {
+                        if (a.isAudioOnly && !b.isAudioOnly) {
+                            return 1;
+                        }
+                        if (!a.isAudioOnly && b.isAudioOnly) {
+                            return -1;
+                        }
+
+                        if (a.sortScore !== b.sortScore) {
+                            return b.sortScore - a.sortScore;
+                        }
+
+                        const tbrA = typeof a.tbr === 'number' && Number.isFinite(a.tbr) ? a.tbr : -1;
+                        const tbrB = typeof b.tbr === 'number' && Number.isFinite(b.tbr) ? b.tbr : -1;
+                        if (tbrA !== tbrB) {
+                            return tbrB - tbrA;
+                        }
+
+                        if (a.ext && b.ext && a.ext !== b.ext) {
+                            return a.ext.localeCompare(b.ext);
+                        }
+
+                        return a.formatId.localeCompare(b.formatId);
+                    });
+
+                    const resolvedTitle = manager.resolveFormatTitle(parsed, request);
+
+                    resolve({
+                        id: typeof parsed.id === 'string' ? parsed.id : request.urlId,
+                        title: resolvedTitle,
+                        formats: formatItems
+                    });
+                });
+            });
+        };
+
+        try {
+            return await parseResult();
+        } catch (error) {
+            const err = error as Error;
+            recordDownloadError({ urlId: request.urlId, url: request.url, error: err.message });
+            const errorState: DownloadSnapshot = {
+                status: 'error',
+                url: request.url,
+                urlId: request.urlId,
+                title: request.title || '',
+                percent: 0,
+                error: err.message
+            };
+            this.state.set(request.urlId, errorState);
+            this.emit('state', errorState);
+            return {
+                id: request.urlId,
+                title: request.title || '',
+                formats: []
+            };
         }
     }
 
@@ -337,7 +591,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
         ensureDirectory(this.config.downloadDir);
 
-        const ytArgs = this.buildArgs(request.url);
+        const ytArgs = this.buildArgs(request);
         let spawnResult: { child: ChildProcess; containerName: string | null };
         try {
             console.log(ytArgs);
@@ -599,7 +853,56 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         return true;
     }
 
-    schedule(request: DownloadRequest): { queued: boolean } {
+    async schedule(request: DownloadRequest): Promise<ScheduleResult> {
+        if (this.config.checkFormatList && !request.formatId) {
+            const formatInfo = await this.getFormatList(request);
+            this.formatCache.set(request.urlId, formatInfo);
+
+            const title = formatInfo.title || request.title || '';
+            request.title = title;
+            console.log('this.config.checkFormatList && !request.formatId -- ', title)
+            if (title) {
+                recordDownloadTitle({ urlId: request.urlId, title });
+            }
+            const options = formatInfo.formats.map((item) => this.createFormatOptionSummary(item));
+
+            const snapshot: DownloadSnapshot = {
+                status: 'format-select',
+                url: request.url,
+                urlId: request.urlId,
+                title,
+                percent: 0,
+                formatOptions: options
+            };
+            this.state.set(request.urlId, snapshot);
+            this.emit('state', snapshot);
+
+            return {
+                queued: false,
+                requiresFormatSelection: true,
+                formatOptions: options,
+                title
+            };
+        }
+
+        if (this.config.checkFormatList && request.formatId) {
+
+            const cached = this.formatCache.get(request.urlId) || (await this.getFormatList(request));
+            this.formatCache.set(request.urlId, cached);
+
+            const matched = cached.formats.find((item) => item.formatId === request.formatId);
+            if (!matched) {
+                throw new Error('Selected format not available.');
+            }
+
+            const resolvedTitle = cached.title || request.title || '';
+            console.log('this.config.checkFormatList && request.formatId -- ', cached.title, request.title);
+            request.title = resolvedTitle;
+            if (resolvedTitle) {
+                recordDownloadTitle({ urlId: request.urlId, title: resolvedTitle });
+            }
+        }
+
         // downloading, queued는 없음.
         recordDownloadQueued(request);
 
@@ -608,11 +911,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             return { queued: true };
         }
 
-        if (this.config.checkFormatList) {
-            this.getFormatList(request);
-        } else {
-            this.start(request);
-        }
+        this.start(request);
 
         return { queued: false };
     }
@@ -658,10 +957,51 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
     private cleanup(urlId: string): void {
         this.activeDownloads.delete(urlId);
+        this.formatCache.delete(urlId);
     }
 
     private finish(urlId: string): void {
         this.cleanup(urlId);
+    }
+
+    private async spawnDownloadProcessPromise(
+        ytArgs: string[],
+        request: DownloadRequest
+    ): Promise<{ child: ChildProcess; containerName: string | null }> {
+        const runner: RunnerConfig = this.config.runner || { type: 'binary', ytDlpBinary: 'yt-dlp' };
+        if (isDockerRunner(runner)) {
+            if (!runner.volumesFrom) {
+                throw new Error('SERVER_CONTAINER_NAME must be set when using the docker runner.');
+            }
+
+            const safeId = (request.urlId || 'job')
+                .toLowerCase()
+                .replace(/[^a-z0-9_.-]+/gu, '-');
+            const containerName = `ducktracker-dl-${safeId}-${Date.now()}`.slice(0, 63);
+            const dockerArgs = ['run', '--rm'];
+
+            dockerArgs.push('--volumes-from', runner.volumesFrom);
+
+            if (runner.workDir) {
+                dockerArgs.push('-w', runner.workDir);
+            }
+
+            dockerArgs.push('--name', containerName);
+            dockerArgs.push(runner.dockerImage);
+            dockerArgs.push(...ytArgs);
+
+            const child = spawn(runner.dockerBin, dockerArgs, {
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+
+            return { child, containerName };
+        }
+
+        const binary = runner.ytDlpBinary || 'yt-dlp';
+        const child = spawn(binary, ytArgs, {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+        return { child, containerName: null };
     }
 
     private spawnDownloadProcess(
@@ -710,30 +1050,175 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         const chromePath = 'chromePath' in runner ? runner.chromePath : undefined;
 
         if (!cookieFilePath && !chromePath) {
-          throw new Error('cookieFilePath or chromePath must be set');
+            throw new Error('cookieFilePath or chromePath must be set');
         }
 
         const args = [
-          url,
-          '-j',
-          '--format-sort',
-          'res,tbr,ext,filesize'
+            url,
+            '-j',
+            '--format-sort',
+            'res,tbr,ext,filesize'
         ];
 
         if (cookieFilePath) {
-          if (!fs.existsSync(cookieFilePath)) {
-            throw new Error(`Cookie file not found: ${cookieFilePath}`);
-          }
-          args.push('--cookies', cookieFilePath);
+            if (!fs.existsSync(cookieFilePath)) {
+                throw new Error(`Cookie file not found: ${cookieFilePath}`);
+            }
+            args.push('--cookies', cookieFilePath);
         } else if (chromePath) {
-          args.push('--cookies-from-browser', chromePath);
+            args.push('--cookies-from-browser', chromePath);
         }
         args.push('--newline');
 
-        return args
+        return args;
     }
 
-    private buildArgs(url: string): string[] {
+    private formatBitrateLabel(tbr: number | null): string {
+        if (tbr === null || tbr === undefined) {
+            return '0';
+        }
+
+        if (!Number.isFinite(tbr)) {
+            return '0';
+        }
+
+        const rounded = Math.round(tbr);
+        if (rounded <= 0) {
+            return '0';
+        }
+
+        return `${rounded} kbps`;
+    }
+
+    private formatFilesizeLabel(filesize: number | null): string {
+        if (filesize === null || filesize === undefined) {
+            return '';
+        }
+
+        if (!Number.isFinite(filesize) || filesize <= 0) {
+            return '';
+        }
+
+        const megabytes = filesize / (1024 * 1024);
+        if (megabytes >= 1000) {
+            const gigabytes = megabytes / 1024;
+            return `${gigabytes.toFixed(2)} GB`;
+        }
+
+        return `${megabytes.toFixed(2)} MB`;
+    }
+
+    private computeFormatSortScore({
+        resolution,
+        width,
+        height,
+        isAudioOnly
+    }: {
+        resolution: string;
+        width: number | null;
+        height: number | null;
+        isAudioOnly: boolean;
+    }): number {
+        if (isAudioOnly) {
+            return -1;
+        }
+
+        const candidates: number[] = [];
+
+        if (typeof height === 'number' && Number.isFinite(height)) {
+            candidates.push(height);
+        }
+
+        if (typeof width === 'number' && Number.isFinite(width)) {
+            candidates.push(width);
+        }
+
+        const resolutionMatch = resolution.match(/(\d+)\s*[xX]\s*(\d+)/u);
+        if (resolutionMatch) {
+            const first = Number.parseInt(resolutionMatch[1] ?? '', 10);
+            const second = Number.parseInt(resolutionMatch[2] ?? '', 10);
+            if (Number.isFinite(first)) {
+                candidates.push(first);
+            }
+            if (Number.isFinite(second)) {
+                candidates.push(second);
+            }
+        }
+
+        const progressiveMatch = resolution.match(/(\d+)\s*p/iu);
+        if (progressiveMatch) {
+            const progressive = Number.parseInt(progressiveMatch[1] ?? '', 10);
+            if (Number.isFinite(progressive)) {
+                candidates.push(progressive);
+            }
+        }
+
+        if (candidates.length === 0) {
+            return 0;
+        }
+
+        return Math.max(...candidates);
+    }
+
+    private resolveFormatTitle(
+        parsed: { title?: string; fulltitle?: string } | null,
+        request: DownloadRequest
+    ): string {
+        const candidates: Array<string | undefined> = [];
+        if (parsed) {
+            candidates.push(parsed.title);
+            candidates.push(parsed.fulltitle);
+        }
+        candidates.push(request.title);
+        candidates.push(request.urlId);
+
+        for (const candidate of candidates) {
+            if (typeof candidate === 'string') {
+                const trimmed = candidate.trim();
+                if (trimmed) {
+                    return trimmed;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private buildFormatLabel(item: FormatListItem): string {
+        const parts: string[] = [];
+        if (item.resolution) {
+            parts.push(item.resolution);
+        }
+
+        const bitrateLabel = this.formatBitrateLabel(item.tbr);
+        if (bitrateLabel) {
+            parts.push(bitrateLabel);
+        }
+
+        if (item.ext) {
+            parts.push(item.ext);
+        }
+
+        const sizeLabel = this.formatFilesizeLabel(item.filesize);
+        if (sizeLabel) {
+            parts.push(sizeLabel);
+        }
+
+        return parts.join(' | ');
+    }
+
+    private createFormatOptionSummary(item: FormatListItem): FormatOptionSummary {
+        return {
+            id: item.formatId,
+            label: this.buildFormatLabel(item),
+            resolution: item.resolution,
+            tbr: item.tbr,
+            ext: item.ext,
+            filesize: item.filesize
+        };
+    }
+
+    private buildArgs(request: DownloadRequest): string[] {
         const runner = this.config.runner;
         const cookieFilePath = 'cookieFilePath' in runner ? runner.cookieFilePath : undefined;
         const chromePath = 'chromePath' in runner ? runner.chromePath : undefined;
@@ -742,14 +1227,19 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             throw new Error('cookieFilePath or chromePath must be set');
         }
 
+        const requestedFormat =
+            typeof request.formatId === 'string' && request.formatId.trim()
+                ? request.formatId.trim()
+                : this.config.format;
+
         const args = [
-            url,
+            request.url,
             '-P',
             this.config.downloadDir,
             '-o',
             this.config.template,
             '-f',
-            this.config.format
+            requestedFormat
         ];
 
         if (cookieFilePath) {
