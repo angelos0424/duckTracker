@@ -1,6 +1,41 @@
 import { useEffect, useRef } from 'react';
 import type { HistoryItem, WebSocketMessage } from '../types';
 
+function isHistoryItemCandidate(value: unknown): value is HistoryItem {
+    return Boolean(
+        value &&
+            typeof value === 'object' &&
+            Object.prototype.hasOwnProperty.call(value, 'urlId') &&
+            typeof (value as { urlId?: unknown }).urlId === 'string'
+    );
+}
+
+function extractHistoryItem(message: WebSocketMessage): HistoryItem | null {
+    if (!message || typeof message !== 'object') {
+        return null;
+    }
+
+    if (isHistoryItemCandidate(message.item)) {
+        return message.item;
+    }
+
+    const payload = message.payload;
+    if (isHistoryItemCandidate(payload)) {
+        return payload;
+    }
+
+    if (
+        payload &&
+        typeof payload === 'object' &&
+        Object.prototype.hasOwnProperty.call(payload, 'item') &&
+        isHistoryItemCandidate((payload as { item?: unknown }).item)
+    ) {
+        return (payload as { item?: HistoryItem }).item ?? null;
+    }
+
+    return null;
+}
+
 export type ItemUpdater = (item: HistoryItem) => void;
 
 export function useHistoryWebSocket(wsPath: string, onUpdate: ItemUpdater) {
@@ -25,8 +60,9 @@ export function useHistoryWebSocket(wsPath: string, onUpdate: ItemUpdater) {
             socket.addEventListener('message', (event) => {
                 try {
                     const data = JSON.parse(event.data as string) as WebSocketMessage;
-                    if (data && data.item) {
-                        updaterRef.current(data.item);
+                    const item = extractHistoryItem(data);
+                    if (item) {
+                        updaterRef.current(item);
                     }
                 } catch (error) {
                     console.error('Failed to parse websocket message', error);
