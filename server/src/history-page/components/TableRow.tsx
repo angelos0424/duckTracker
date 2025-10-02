@@ -32,11 +32,45 @@ export const TableRow: React.FC<TableRowProps> = ({ item, enableFormatSelection,
             ? `${item.fileSizeBytes.toLocaleString()} bytes`
             : undefined;
 
+    const handleTitleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+        if (!sourceUrl || !handlers?.onOpenBrowser) {
+            return;
+        }
+        event.preventDefault();
+        handlers.onOpenBrowser(sourceUrl);
+    };
+
+    const handleTitleLinkKeyDown = (event: React.KeyboardEvent<HTMLAnchorElement>) => {
+        if (event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault();
+            if (sourceUrl && handlers?.onOpenBrowser) {
+                handlers.onOpenBrowser(sourceUrl);
+            }
+        }
+    };
+
     return (
         <tr data-url-id={urlId} data-status={status} data-source-url={sourceUrl} data-file-path={item.filePath || ''}>
             <td className="title" data-label="제목">
                 <div className="title-text" title={title || '(제목 없음)'}>
-                    {title ? title : <span className="muted">(제목 없음)</span>}
+                    {title ? (
+                        sourceUrl ? (
+                            <a
+                                href={sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="title-link"
+                                onClick={handleTitleLinkClick}
+                                onKeyDown={handleTitleLinkKeyDown}
+                            >
+                                {title}
+                            </a>
+                        ) : (
+                            title
+                        )
+                    ) : (
+                        <span className="muted">(제목 없음)</span>
+                    )}
                 </div>
                 <div className="title-url" title={urlDisplay || '-'}>
                     {sourceUrl ? (

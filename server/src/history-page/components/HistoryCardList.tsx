@@ -166,8 +166,7 @@ const HistoryCardRow: React.FC<HistoryCardRowProps> = ({
                 finishGesture(event, false);
                 return;
             }
-            const delta = deltaX;
-            setOffset(clampOffset(delta));
+            setOffset(clampOffset(deltaX));
             event.preventDefault();
         },
         [clampOffset, finishGesture, isDragging]
@@ -204,6 +203,31 @@ const HistoryCardRow: React.FC<HistoryCardRowProps> = ({
         return classes.join(' ');
     }, [deleteDisabled, isAnimating, isDragging]);
 
+    const activateTitle = useCallback(
+        (event?: React.MouseEvent<HTMLAnchorElement> | React.KeyboardEvent<HTMLAnchorElement>) => {
+            const url = item.url;
+            if (!url) {
+                return;
+            }
+
+            if (handlers?.onOpenBrowser) {
+                event?.preventDefault?.();
+                handlers.onOpenBrowser(url);
+            }
+        },
+        [handlers, item.url]
+    );
+
+    const handleAnchorKeyDown = useCallback(
+        (event: React.KeyboardEvent<HTMLAnchorElement>) => {
+            if (event.key === ' ' || event.key === 'Spacebar') {
+                event.preventDefault();
+                activateTitle(event);
+            }
+        },
+        [activateTitle]
+    );
+
     return (
         <div className="history-card-row" data-url-id={urlId}>
             <div className="history-card-swipe">
@@ -224,7 +248,24 @@ const HistoryCardRow: React.FC<HistoryCardRowProps> = ({
             >
                 <article className="history-card" data-status={status}>
                     <h2 className="history-card__title" title={title || '(제목 없음)'}>
-                        {title ? title : <span className="muted">(제목 없음)</span>}
+                        {title ? (
+                            item.url ? (
+                                <a
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="history-card__title-link"
+                                    onClick={activateTitle}
+                                    onKeyDown={handleAnchorKeyDown}
+                                >
+                                    {title}
+                                </a>
+                            ) : (
+                                title
+                            )
+                        ) : (
+                            <span className="muted">(제목 없음)</span>
+                        )}
                     </h2>
                     <div className="history-card__status-row">
                         <span className={statusClass}>{getStatusLabel(status)}</span>
@@ -307,4 +348,3 @@ export const HistoryCardList: React.FC<HistoryCardListProps> = ({
         </div>
     );
 };
-

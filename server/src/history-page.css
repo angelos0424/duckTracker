@@ -600,6 +600,19 @@ input {
     color: #0f172a;
 }
 
+.title-text .title-link,
+.history-card__title-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.title-text .title-link:hover,
+.title-text .title-link:focus,
+.history-card__title-link:hover,
+.history-card__title-link:focus {
+    text-decoration: underline;
+}
+
 .history-card__status-row {
     display: flex;
     align-items: center;

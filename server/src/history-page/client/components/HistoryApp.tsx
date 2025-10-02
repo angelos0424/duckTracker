@@ -224,6 +224,14 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
         [removeBusy, updateItemState]
     );
 
+    const handleOpenBrowser = useCallback((url: string) => {
+        if (!url) {
+            return;
+        }
+
+        window.open(url, '_blank', 'noopener');
+    }, []);
+
     const handleDelete = useCallback(
         async (urlId: string) => {
             if (!urlId || deleteBusy.state[urlId]) {
@@ -547,7 +555,8 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                                     onResume: handleResume,
                                     onRemoveFile: handleRemoveFile,
                                     onDelete: handleDelete,
-                                    onSelectFormat: handleFormatSelectionRequest
+                                    onSelectFormat: handleFormatSelectionRequest,
+                                    onOpenBrowser: handleOpenBrowser
                                 }}
                                 pending={{
                                     download: toBooleanMap(downloadBusy.state),
@@ -572,7 +581,8 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                                 onResume: handleResume,
                                 onRemoveFile: handleRemoveFile,
                                 onDelete: handleDelete,
-                                onSelectFormat: handleFormatSelectionRequest
+                                onSelectFormat: handleFormatSelectionRequest,
+                                onOpenBrowser: handleOpenBrowser
                             }}
                             pending={{
                                 download: toBooleanMap(downloadBusy.state),

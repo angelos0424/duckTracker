@@ -17,6 +17,7 @@ export interface ActionsCellHandlers {
     onRemoveFile?: (urlId: string) => void;
     onDelete?: (urlId: string) => void;
     onSelectFormat?: (urlId: string) => void;
+    onOpenBrowser?: (url: string) => void;
 }
 
 interface ActionsCellProps extends ActionsCellHandlers, ActionsCellState {
