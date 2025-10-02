@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FC } from 'react';
+
 import type { CSSProperties, PointerEvent as ReactPointerEvent, SyntheticEvent } from 'react';
 
 interface PlaybackWindowProps {
@@ -24,7 +25,7 @@ const MIN_HEIGHT = 146;
 const MAX_WIDTH = 960;
 const MAX_HEIGHT = 720;
 const VIEWPORT_MARGIN = 16;
-const DEFAULT_DIMENSIONS: Dimensions = { width: 360, height: 202 };
+const DEFAULT_VIDEO_DIMENSIONS: Dimensions = { width: 360, height: 202 };
 
 interface ViewportBounds {
     maxWidth: number;
@@ -56,19 +57,19 @@ function clampDimensions(candidate: Dimensions): Dimensions {
     };
 }
 
-function computeVideoDimensions(videoWidth: number, videoHeight: number): Dimensions {
-    if (videoWidth <= 0 || videoHeight <= 0) {
-        return clampDimensions(DEFAULT_DIMENSIONS);
-    }
-
+function computeWindowDimensions(videoWidth: number, videoHeight: number, chromeHeight: number): Dimensions {
+    const effectiveWidth = videoWidth > 0 ? videoWidth : DEFAULT_VIDEO_DIMENSIONS.width;
+    const effectiveHeight = videoHeight > 0 ? videoHeight : DEFAULT_VIDEO_DIMENSIONS.height;
+    const aspectRatio = effectiveWidth / effectiveHeight;
     const { maxWidth, maxHeight } = getViewportBounds();
-    const aspectRatio = videoWidth / videoHeight;
+    const maxVideoHeight = Math.max(0, maxHeight - chromeHeight);
+    const minVideoHeight = Math.max(0, MIN_HEIGHT - chromeHeight);
 
-    let width = Math.min(videoWidth, maxWidth);
+    let width = Math.min(effectiveWidth, maxWidth);
     let height = width / aspectRatio;
 
-    if (height > maxHeight) {
-        height = maxHeight;
+    if (maxVideoHeight > 0 && height > maxVideoHeight) {
+        height = maxVideoHeight;
         width = height * aspectRatio;
     }
 
@@ -77,8 +78,8 @@ function computeVideoDimensions(videoWidth: number, videoHeight: number): Dimens
         height = width / aspectRatio;
     }
 
-    if (height < MIN_HEIGHT) {
-        height = MIN_HEIGHT;
+    if (height < minVideoHeight) {
+        height = minVideoHeight;
         width = height * aspectRatio;
     }
 
@@ -87,15 +88,17 @@ function computeVideoDimensions(videoWidth: number, videoHeight: number): Dimens
         height = width / aspectRatio;
     }
 
-    if (height > maxHeight) {
-        height = maxHeight;
+    if (maxVideoHeight > 0 && height > maxVideoHeight) {
+        height = maxVideoHeight;
         width = height * aspectRatio;
     }
 
-    return {
+    const containerHeight = height + chromeHeight;
+
+    return clampDimensions({
         width: Math.round(width),
-        height: Math.round(height)
-    };
+        height: Math.round(containerHeight)
+    });
 }
 
 const MinimizeIcon = () => (
@@ -148,8 +151,24 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
     onClose,
     onReload
 }) => {
-    const [dimensions, setDimensions] = useState<Dimensions>(() => clampDimensions(DEFAULT_DIMENSIONS));
-    const [position, setPosition] = useState<Position>(() => clampPosition(computeInitialPosition(DEFAULT_DIMENSIONS), DEFAULT_DIMENSIONS));
+    const [dimensions, setDimensions] = useState<Dimensions>(() =>
+        clampDimensions({
+            width: DEFAULT_VIDEO_DIMENSIONS.width,
+            height: DEFAULT_VIDEO_DIMENSIONS.height
+        })
+    );
+    const [position, setPosition] = useState<Position>(() =>
+        clampPosition(
+            computeInitialPosition({
+                width: DEFAULT_VIDEO_DIMENSIONS.width,
+                height: DEFAULT_VIDEO_DIMENSIONS.height
+            }),
+            {
+                width: DEFAULT_VIDEO_DIMENSIONS.width,
+                height: DEFAULT_VIDEO_DIMENSIONS.height
+            }
+        )
+    );
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
     const [windowState, setWindowState] = useState<WindowState>('default');
@@ -159,6 +178,12 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
     const resizeCleanupRef = useRef<(() => void) | null>(null);
     const previousLayoutRef = useRef<{ dimensions: Dimensions; position: Position } | null>(null);
     const hasInteractedRef = useRef(false);
+    const headerRef = useRef<HTMLDivElement | null>(null);
+    const headerHeightRef = useRef(0);
+    const getDefaultWindowDimensions = useCallback(
+        () => computeWindowDimensions(DEFAULT_VIDEO_DIMENSIONS.width, DEFAULT_VIDEO_DIMENSIONS.height, headerHeightRef.current),
+        []
+    );
 
     useEffect(() => {
         const handleWindowResize = () => {
@@ -186,15 +211,48 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
         setPosition((current) => clampPosition(current, dimensions));
     }, [dimensions]);
 
+    useLayoutEffect(() => {
+        if (!headerRef.current) {
+            return;
+        }
+        const measuredHeight = Math.round(headerRef.current.getBoundingClientRect().height);
+        if (measuredHeight === headerHeightRef.current) {
+            return;
+        }
+        const delta = measuredHeight - headerHeightRef.current;
+        headerHeightRef.current = measuredHeight;
+        setDimensions((prev) => {
+            const next = clampDimensions({
+                ...prev,
+                height: prev.height + delta
+            });
+            if (next.width === prev.width && next.height === prev.height) {
+                return prev;
+            }
+            return next;
+        });
+        if (previousLayoutRef.current) {
+            const updatedDimensions = clampDimensions({
+                ...previousLayoutRef.current.dimensions,
+                height: previousLayoutRef.current.dimensions.height + delta
+            });
+            previousLayoutRef.current = {
+                dimensions: updatedDimensions,
+                position: clampPosition(previousLayoutRef.current.position, updatedDimensions)
+            };
+        }
+    }, [dimensions.width, title, windowState]);
+
     useEffect(() => {
         setErrorMessage(null);
         hasInteractedRef.current = false;
         setWindowState('default');
         previousLayoutRef.current = null;
-        const resetDimensions = clampDimensions(DEFAULT_DIMENSIONS);
+        const resetDimensions = getDefaultWindowDimensions();
         setDimensions(resetDimensions);
         setPosition(() => clampPosition(computeInitialPosition(resetDimensions), resetDimensions));
-    }, [streamUrl]);
+    }, [getDefaultWindowDimensions, streamUrl]);
+
 
     const handlePointerMoveDrag = useCallback(
         (initialPosition: Position, startX: number, startY: number) => (event: PointerEvent) => {
@@ -308,7 +366,8 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
 
     const handleVideoLoadedMetadata = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
         const { videoWidth, videoHeight } = event.currentTarget;
-        const nextDimensions = computeVideoDimensions(videoWidth, videoHeight);
+        const nextDimensions = computeWindowDimensions(videoWidth, videoHeight, headerHeightRef.current);
+
         setDimensions(nextDimensions);
         setPosition((current) => {
             const nextPosition = hasInteractedRef.current
@@ -438,7 +497,7 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
 
     return (
         <div className={containerClassName} data-url-id={urlId} style={containerStyle}>
-            <div className="playback-window__header" onPointerDown={startDrag} role="presentation">
+            <div className="playback-window__header" onPointerDown={startDrag} role="presentation" ref={headerRef}>
                 <div className="playback-window__title" title={title || '(제목 없음)'}>
                     {title || '(제목 없음)'}
                 </div>
