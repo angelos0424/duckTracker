@@ -236,6 +236,59 @@ function getContentTypeForPath(filePath: string): string {
     }
 }
 
+const INVALID_FILENAME_CHARACTERS = /[\\/:*?"<>|\u0000-\u001F]/gu;
+const MAX_FILENAME_BASE_LENGTH = 180;
+
+function normaliseDownloadBaseName(candidate: string | undefined | null): string | null {
+    if (!candidate) {
+        return null;
+    }
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+        return null;
+    }
+    const cleaned = trimmed.replace(INVALID_FILENAME_CHARACTERS, '_').replace(/\s+/gu, ' ');
+    const withoutTrailingDots = cleaned.replace(/\.+$/u, '').trim();
+    if (!withoutTrailingDots) {
+        return null;
+    }
+    if (withoutTrailingDots.length <= MAX_FILENAME_BASE_LENGTH) {
+        return withoutTrailingDots;
+    }
+    return withoutTrailingDots.slice(0, MAX_FILENAME_BASE_LENGTH).trim();
+}
+
+function encodeRFC5987Value(str: string): string {
+    return encodeURIComponent(str)
+        .replace(/['()*]/gu, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
+        .replace(/%(?:7C|60|5E)/gu, (match) => match.toUpperCase());
+}
+
+function formatContentDisposition(filename: string): string {
+    const fallback = filename
+        .replace(/[^\x20-\x7E]/gu, '_')
+        .replace(/["\\]/gu, '_')
+        .trim() || 'download';
+    const encoded = encodeRFC5987Value(filename);
+    return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
+function deriveDownloadFileName(options: {
+    requestedBaseName: string | undefined | null;
+    recordTitle: string | undefined;
+    resolvedPath: string;
+}): string {
+    const extension = path.extname(options.resolvedPath) || '';
+    const candidates = [options.requestedBaseName, options.recordTitle, extension ? path.basename(options.resolvedPath, extension) : path.basename(options.resolvedPath)];
+    const normalisedBase = candidates
+        .map((candidate) => normaliseDownloadBaseName(candidate))
+        .find((candidate): candidate is string => Boolean(candidate)) || 'download';
+    if (extension && normalisedBase.toLowerCase().endsWith(extension.toLowerCase())) {
+        return normalisedBase;
+    }
+    return `${normalisedBase}${extension}`;
+}
+
 function isValidUrl(candidate: string): boolean {
     try {
         const parsed = new URL(candidate);
@@ -569,16 +622,33 @@ async function handleHistoryFileStream(req: IncomingMessage, res: ServerResponse
             return;
         }
 
-        const { resolvedPath, stats } = await resolveHistoryFileOrThrow(urlId);
+        const requestUrl = (() => {
+            try {
+                const href = req.url || '';
+                return new URL(href, 'http://localhost');
+            } catch (error) {
+                return null;
+            }
+        })();
+        const requestedBaseName = requestUrl?.searchParams.get('downloadName');
+
+        const { resolvedPath, stats, record } = await resolveHistoryFileOrThrow(urlId);
         const totalSize = Math.max(0, stats.size);
         const contentType = getContentTypeForPath(resolvedPath);
+        const downloadFileName = deriveDownloadFileName({
+            requestedBaseName,
+            recordTitle: record.title || undefined,
+            resolvedPath
+        });
+        const contentDisposition = formatContentDisposition(downloadFileName);
 
         if (totalSize === 0) {
             res.writeHead(200, {
                 'Content-Type': contentType,
                 'Content-Length': 0,
                 'Accept-Ranges': 'bytes',
-                'Cache-Control': 'no-store'
+                'Cache-Control': 'no-store',
+                'Content-Disposition': contentDisposition
             });
             res.end();
             return;
@@ -632,7 +702,8 @@ async function handleHistoryFileStream(req: IncomingMessage, res: ServerResponse
                 'Content-Length': chunkSize,
                 'Content-Range': `bytes ${safeStart}-${safeEnd}/${totalSize}`,
                 'Accept-Ranges': 'bytes',
-                'Cache-Control': 'no-store'
+                'Cache-Control': 'no-store',
+                'Content-Disposition': contentDisposition
             });
 
             const stream = fs.createReadStream(resolvedPath, { start: safeStart, end: safeEnd });
@@ -645,7 +716,8 @@ async function handleHistoryFileStream(req: IncomingMessage, res: ServerResponse
             'Content-Type': contentType,
             'Content-Length': totalSize,
             'Accept-Ranges': 'bytes',
-            'Cache-Control': 'no-store'
+            'Cache-Control': 'no-store',
+            'Content-Disposition': contentDisposition
         });
         const stream = fs.createReadStream(resolvedPath);
         writeStreamError(res, stream, { urlId, filePath: resolvedPath });

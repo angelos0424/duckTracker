@@ -596,7 +596,6 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         const ytArgs = this.buildArgs(request);
         let spawnResult: { child: ChildProcess; containerName: string | null };
         try {
-            console.log(ytArgs);
             spawnResult = this.spawnDownloadProcess(ytArgs, request);
         } catch (error) {
             const err = error as Error;

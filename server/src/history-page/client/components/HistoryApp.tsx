@@ -571,13 +571,8 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
             <div className="history-shell">
                 <header className="history-shell__header">
                     <div>
-                        <h1 className="history-shell__title">다운로드 관리</h1>
-                        <p className="history-shell__subtitle">파일 다운로드 상태를 확인하고 관리하세요.</p>
-                    </div>
-                    <div className="history-shell__header-actions">
-                        <button type="button" className="button button--ghost" disabled>
-                            관리
-                        </button>
+                        <h1 className="history-shell__title">DuckTracker</h1>
+                        <p className="history-shell__subtitle">이걸 내가 받았나..?하며 또 받지 마세요!</p>
                     </div>
                 </header>
                 <div className="history-toolbar">

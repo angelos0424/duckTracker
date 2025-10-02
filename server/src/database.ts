@@ -334,6 +334,7 @@ export function collectServerOnlyUrlIds(incomingIds: string[]): string[] {
 export function getDownloadState(urlId: string): DownloadRecordRow | null {
     const db = assertDb();
     const stmts = ensureStatements(db);
+    console.log('getDownloadState...', stmts.selectState.get(urlId))
     return stmts.selectState.get(urlId) ?? null;
 }
 

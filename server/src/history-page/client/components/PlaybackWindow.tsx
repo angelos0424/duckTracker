@@ -26,6 +26,7 @@ const MAX_WIDTH = 960;
 const MAX_HEIGHT = 720;
 const VIEWPORT_MARGIN = 16;
 const DEFAULT_VIDEO_DIMENSIONS: Dimensions = { width: 360, height: 202 };
+const INVALID_FILENAME_CHARACTERS = /[\\/:*?"<>|\u0000-\u001F]/gu;
 
 interface ViewportBounds {
     maxWidth: number;
@@ -99,6 +100,40 @@ function computeWindowDimensions(videoWidth: number, videoHeight: number, chrome
         width: Math.round(width),
         height: Math.round(containerHeight)
     });
+}
+
+function normaliseDownloadBaseName(title: string): string | null {
+    const trimmed = title.trim();
+    if (!trimmed) {
+        return null;
+    }
+    const sanitised = trimmed.replace(INVALID_FILENAME_CHARACTERS, '_').replace(/\s+/gu, ' ').trim();
+    const withoutTrailingDots = sanitised.replace(/\.+$/u, '');
+    if (!withoutTrailingDots) {
+        return null;
+    }
+    const MAX_BASE_LENGTH = 180;
+    if (withoutTrailingDots.length <= MAX_BASE_LENGTH) {
+        return withoutTrailingDots;
+    }
+    return withoutTrailingDots.slice(0, MAX_BASE_LENGTH).trim();
+}
+
+function buildStreamUrl(streamUrl: string, downloadBaseName: string | null): string {
+    if (!streamUrl) {
+        return streamUrl;
+    }
+    if (!downloadBaseName) {
+        return streamUrl;
+    }
+    try {
+        const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+        const url = new URL(streamUrl, base);
+        url.searchParams.set('downloadName', downloadBaseName);
+        return url.toString();
+    } catch (error) {
+        return streamUrl;
+    }
 }
 
 const MinimizeIcon = () => (
@@ -180,6 +215,8 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
     const hasInteractedRef = useRef(false);
     const headerRef = useRef<HTMLDivElement | null>(null);
     const headerHeightRef = useRef(0);
+    const downloadBaseName = useMemo(() => normaliseDownloadBaseName(title), [title]);
+    const resolvedStreamUrl = useMemo(() => buildStreamUrl(streamUrl, downloadBaseName), [downloadBaseName, streamUrl]);
     const getDefaultWindowDimensions = useCallback(
         () => computeWindowDimensions(DEFAULT_VIDEO_DIMENSIONS.width, DEFAULT_VIDEO_DIMENSIONS.height, headerHeightRef.current),
         []
@@ -403,7 +440,29 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
         if (videoElement) {
             tryAutoplay(videoElement);
         }
-    }, [tryAutoplay, videoElement, streamUrl]);
+    }, [tryAutoplay, videoElement, resolvedStreamUrl]);
+
+    useEffect(() => {
+        if (!videoElement) {
+            return;
+        }
+        if ('disablePictureInPicture' in videoElement) {
+            videoElement.disablePictureInPicture = true;
+        }
+        if ('disableRemotePlayback' in videoElement) {
+            (videoElement as HTMLVideoElement & { disableRemotePlayback?: boolean }).disableRemotePlayback = true;
+        }
+        const handleEnterPictureInPicture = (event: Event) => {
+            event.preventDefault();
+            if (document.pictureInPictureElement === videoElement && typeof document.exitPictureInPicture === 'function') {
+                void document.exitPictureInPicture().catch(() => undefined);
+            }
+        };
+        videoElement.addEventListener('enterpictureinpicture', handleEnterPictureInPicture);
+        return () => {
+            videoElement.removeEventListener('enterpictureinpicture', handleEnterPictureInPicture);
+        };
+    }, [videoElement]);
 
     const restoreFromMaximized = useCallback(() => {
         const previous = previousLayoutRef.current;
@@ -548,9 +607,11 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
                         id={videoId}
                         key={streamUrl}
                         className="playback-window__video"
-                        src={streamUrl}
+                        src={resolvedStreamUrl}
                         controls
                         playsInline
+                        disablePictureInPicture
+                        disableRemotePlayback
                         ref={handleVideoRef}
                         onLoadedMetadata={handleVideoLoadedMetadata}
                         onCanPlay={handleVideoCanPlay}
@@ -562,4 +623,3 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
         </div>
     );
 };
-
