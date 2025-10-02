@@ -557,6 +557,7 @@ input {
     cursor: grab;
     -webkit-user-select: none;
     user-select: none;
+    touch-action: none;
 }
 
 .playback-window__title {
@@ -645,6 +646,7 @@ input {
     bottom: 8px;
     cursor: nwse-resize;
     opacity: 0.7;
+    touch-action: none;
 }
 
 .playback-window__resize-handle::before {
@@ -662,6 +664,24 @@ input {
 
 .playback-window--error .playback-window__icon-button {
     color: #fbbf24;
+}
+
+.playback-window--minimized {
+    min-height: 0;
+    height: auto;
+}
+
+.playback-window--minimized .playback-window__body,
+.playback-window--minimized .playback-window__resize-handle {
+    display: none;
+}
+
+.playback-window--maximized .playback-window__resize-handle {
+    display: none;
+}
+
+.playback-window--maximized .playback-window__header {
+    cursor: default;
 }
 
 .history-card-wrapper {
