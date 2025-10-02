@@ -196,10 +196,9 @@ async function handleDownload(_req: IncomingMessage, res: ServerResponse): Promi
         const targetUrl = body.url as string | undefined;
         const urlId = body.urlId as string | undefined;
         const title = (body.title as string | undefined) ?? '';
-        const skipFormatCheck =
-            body?.skipFormatCheck === true ||
-            (config.checkFormatList && body?.enforceFormatCheck === false);
-        const enforceFormatCheck = config.checkFormatList && !skipFormatCheck;
+        // 외부에서 오는 요청.
+        const skipFormatCheck = true
+        const enforceFormatCheck = false;
 
         if (!targetUrl || !urlId) {
             jsonResponse(res, 400, { error: 'url and urlId are required' });
