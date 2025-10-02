@@ -553,13 +553,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
         return `${base}?v=${playback.cacheKey}`;
     }, [playback]);
 
-    const playbackDownloadUrl = useMemo(() => {
-        if (!playback) {
-            return '';
-        }
-        return `/history/${encodeURIComponent(playback.urlId)}/file`;
-    }, [playback]);
-
     const summary = useMemo(
         () => ({
             total: props.total,
@@ -697,7 +690,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                     urlId={playback.urlId}
                     title={playback.title}
                     streamUrl={playbackStreamUrl}
-                    downloadUrl={playbackDownloadUrl}
                     onClose={handleClosePlayback}
                     onReload={handleReloadPlayback}
                 />

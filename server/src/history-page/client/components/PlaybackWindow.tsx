@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent, SyntheticEvent } from 'react';
 
 interface PlaybackWindowProps {
     title: string;
@@ -7,7 +7,6 @@ interface PlaybackWindowProps {
     urlId: string;
     onClose: () => void;
     onReload?: () => void;
-    downloadUrl?: string;
 }
 
 interface Position {
@@ -27,22 +26,96 @@ const MAX_HEIGHT = 720;
 const VIEWPORT_MARGIN = 16;
 const DEFAULT_DIMENSIONS: Dimensions = { width: 360, height: 202 };
 
-function clampDimensions(candidate: Dimensions): Dimensions {
+interface ViewportBounds {
+    maxWidth: number;
+    maxHeight: number;
+}
+
+type WindowState = 'default' | 'minimized' | 'maximized';
+
+function getViewportBounds(): ViewportBounds {
     if (typeof window === 'undefined') {
         return {
-            width: Math.max(MIN_WIDTH, candidate.width),
-            height: Math.max(MIN_HEIGHT, candidate.height)
+            maxWidth: MAX_WIDTH,
+            maxHeight: MAX_HEIGHT
         };
     }
 
-    const maxWidth = Math.max(MIN_WIDTH, Math.min(window.innerWidth - VIEWPORT_MARGIN * 2, MAX_WIDTH));
-    const maxHeight = Math.max(MIN_HEIGHT, Math.min(window.innerHeight - VIEWPORT_MARGIN * 2, MAX_HEIGHT));
+    return {
+        maxWidth: Math.max(MIN_WIDTH, Math.min(window.innerWidth - VIEWPORT_MARGIN * 2, MAX_WIDTH)),
+        maxHeight: Math.max(MIN_HEIGHT, Math.min(window.innerHeight - VIEWPORT_MARGIN * 2, MAX_HEIGHT))
+    };
+}
+
+function clampDimensions(candidate: Dimensions): Dimensions {
+    const { maxWidth, maxHeight } = getViewportBounds();
 
     return {
         width: Math.min(Math.max(MIN_WIDTH, candidate.width), maxWidth),
         height: Math.min(Math.max(MIN_HEIGHT, candidate.height), maxHeight)
     };
 }
+
+function computeVideoDimensions(videoWidth: number, videoHeight: number): Dimensions {
+    if (videoWidth <= 0 || videoHeight <= 0) {
+        return clampDimensions(DEFAULT_DIMENSIONS);
+    }
+
+    const { maxWidth, maxHeight } = getViewportBounds();
+    const aspectRatio = videoWidth / videoHeight;
+
+    let width = Math.min(videoWidth, maxWidth);
+    let height = width / aspectRatio;
+
+    if (height > maxHeight) {
+        height = maxHeight;
+        width = height * aspectRatio;
+    }
+
+    if (width < MIN_WIDTH) {
+        width = MIN_WIDTH;
+        height = width / aspectRatio;
+    }
+
+    if (height < MIN_HEIGHT) {
+        height = MIN_HEIGHT;
+        width = height * aspectRatio;
+    }
+
+    if (width > maxWidth) {
+        width = maxWidth;
+        height = width / aspectRatio;
+    }
+
+    if (height > maxHeight) {
+        height = maxHeight;
+        width = height * aspectRatio;
+    }
+
+    return {
+        width: Math.round(width),
+        height: Math.round(height)
+    };
+}
+
+const MinimizeIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="6" y="13" width="12" height="2" rx="1" />
+    </svg>
+);
+
+const MaximizeIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="5" y="5" width="14" height="14" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+);
+
+const RestoreIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6 9a1 1 0 0 1 1-1h6V6H7a3 3 0 0 0-3 3v8h2z" />
+        <rect x="10" y="10" width="8" height="8" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+);
 
 function clampPosition(candidate: Position, size: Dimensions): Position {
     if (typeof window === 'undefined') {
@@ -73,17 +146,19 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
     streamUrl,
     urlId,
     onClose,
-    onReload,
-    downloadUrl
+    onReload
 }) => {
     const [dimensions, setDimensions] = useState<Dimensions>(() => clampDimensions(DEFAULT_DIMENSIONS));
     const [position, setPosition] = useState<Position>(() => clampPosition(computeInitialPosition(DEFAULT_DIMENSIONS), DEFAULT_DIMENSIONS));
     const [isDragging, setIsDragging] = useState(false);
     const [isResizing, setIsResizing] = useState(false);
+    const [windowState, setWindowState] = useState<WindowState>('default');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
     const dragCleanupRef = useRef<(() => void) | null>(null);
     const resizeCleanupRef = useRef<(() => void) | null>(null);
+    const previousLayoutRef = useRef<{ dimensions: Dimensions; position: Position } | null>(null);
+    const hasInteractedRef = useRef(false);
 
     useEffect(() => {
         const handleWindowResize = () => {
@@ -113,11 +188,18 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
 
     useEffect(() => {
         setErrorMessage(null);
+        hasInteractedRef.current = false;
+        setWindowState('default');
+        previousLayoutRef.current = null;
+        const resetDimensions = clampDimensions(DEFAULT_DIMENSIONS);
+        setDimensions(resetDimensions);
+        setPosition(() => clampPosition(computeInitialPosition(resetDimensions), resetDimensions));
     }, [streamUrl]);
 
     const handlePointerMoveDrag = useCallback(
         (initialPosition: Position, startX: number, startY: number) => (event: PointerEvent) => {
             event.preventDefault();
+            event.stopPropagation();
             const deltaX = event.clientX - startX;
             const deltaY = event.clientY - startY;
             const nextPosition = clampPosition(
@@ -135,6 +217,7 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
     const handlePointerMoveResize = useCallback(
         (initialSize: Dimensions, startX: number, startY: number) => (event: PointerEvent) => {
             event.preventDefault();
+            event.stopPropagation();
             const deltaX = event.clientX - startX;
             const deltaY = event.clientY - startY;
             const nextSize = clampDimensions({
@@ -149,15 +232,20 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
 
     const startDrag = useCallback(
         (event: ReactPointerEvent<HTMLDivElement>) => {
+            if (windowState === 'maximized') {
+                return;
+            }
             if (event.pointerType === 'mouse' && event.button !== 0) {
                 return;
             }
             event.preventDefault();
+            event.stopPropagation();
             dragCleanupRef.current?.();
             const initialPosition = { ...position };
             const startX = event.clientX;
             const startY = event.clientY;
             setIsDragging(true);
+            hasInteractedRef.current = true;
             const moveListener = handlePointerMoveDrag(initialPosition, startX, startY);
             const stopDragging = () => {
                 window.removeEventListener('pointermove', moveListener);
@@ -173,20 +261,25 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
             window.addEventListener('pointercancel', stopDragging);
             dragCleanupRef.current = stopDragging;
         },
-        [handlePointerMoveDrag, position]
+        [handlePointerMoveDrag, position, windowState]
     );
 
     const startResize = useCallback(
         (event: ReactPointerEvent<HTMLDivElement>) => {
+            if (windowState !== 'default') {
+                return;
+            }
             if (event.pointerType === 'mouse' && event.button !== 0) {
                 return;
             }
             event.preventDefault();
+            event.stopPropagation();
             resizeCleanupRef.current?.();
             const initialSize = { ...dimensions };
             const startX = event.clientX;
             const startY = event.clientY;
             setIsResizing(true);
+            hasInteractedRef.current = true;
             const moveListener = handlePointerMoveResize(initialSize, startX, startY);
             const stopResizing = () => {
                 window.removeEventListener('pointermove', moveListener);
@@ -202,7 +295,7 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
             window.addEventListener('pointercancel', stopResizing);
             resizeCleanupRef.current = stopResizing;
         },
-        [dimensions, handlePointerMoveResize]
+        [dimensions, handlePointerMoveResize, windowState]
     );
 
     const handleVideoError = useCallback(() => {
@@ -211,6 +304,24 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
 
     const handleVideoCanPlay = useCallback(() => {
         setErrorMessage(null);
+    }, []);
+
+    const handleVideoLoadedMetadata = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
+        const { videoWidth, videoHeight } = event.currentTarget;
+        const nextDimensions = computeVideoDimensions(videoWidth, videoHeight);
+        setDimensions(nextDimensions);
+        setPosition((current) => {
+            const nextPosition = hasInteractedRef.current
+                ? clampPosition(current, nextDimensions)
+                : clampPosition(computeInitialPosition(nextDimensions), nextDimensions);
+            if (previousLayoutRef.current) {
+                previousLayoutRef.current = {
+                    dimensions: nextDimensions,
+                    position: nextPosition
+                };
+            }
+            return nextPosition;
+        });
     }, []);
 
     const tryAutoplay = useCallback((video: HTMLVideoElement | null) => {
@@ -235,6 +346,74 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
         }
     }, [tryAutoplay, videoElement, streamUrl]);
 
+    const restoreFromMaximized = useCallback(() => {
+        const previous = previousLayoutRef.current;
+        if (!previous) {
+            previousLayoutRef.current = null;
+            return;
+        }
+        const nextDimensions = clampDimensions(previous.dimensions);
+        setDimensions(nextDimensions);
+        setPosition(() => clampPosition(previous.position, nextDimensions));
+        previousLayoutRef.current = null;
+    }, []);
+
+    const handleToggleMaximize = useCallback(() => {
+        hasInteractedRef.current = true;
+        if (windowState === 'maximized') {
+            restoreFromMaximized();
+            setWindowState('default');
+            return;
+        }
+        previousLayoutRef.current = {
+            dimensions: { ...dimensions },
+            position: { ...position }
+        };
+        setWindowState('maximized');
+    }, [dimensions, position, restoreFromMaximized, windowState]);
+
+    const handleToggleMinimize = useCallback(() => {
+        hasInteractedRef.current = true;
+        if (windowState === 'minimized') {
+            setWindowState('default');
+            return;
+        }
+        if (windowState === 'maximized') {
+            restoreFromMaximized();
+        }
+        setWindowState('minimized');
+    }, [restoreFromMaximized, windowState]);
+
+    const isMinimized = windowState === 'minimized';
+    const isMaximized = windowState === 'maximized';
+
+    const resolvedDimensions = useMemo(() => {
+        if (isMaximized) {
+            const { maxWidth, maxHeight } = getViewportBounds();
+            return { width: maxWidth, height: maxHeight };
+        }
+        return dimensions;
+    }, [dimensions, isMaximized]);
+
+    const resolvedPosition = useMemo(() => {
+        if (isMaximized) {
+            return { top: VIEWPORT_MARGIN, left: VIEWPORT_MARGIN };
+        }
+        return position;
+    }, [isMaximized, position]);
+
+    const containerStyle = useMemo<CSSProperties>(() => {
+        const style: CSSProperties = {
+            width: `${resolvedDimensions.width}px`,
+            top: `${resolvedPosition.top}px`,
+            left: `${resolvedPosition.left}px`
+        };
+        if (!isMinimized) {
+            style.height = `${resolvedDimensions.height}px`;
+        }
+        return style;
+    }, [isMinimized, resolvedDimensions, resolvedPosition]);
+
     const containerClassName = useMemo(() => {
         const classes = ['playback-window'];
         if (isDragging) {
@@ -246,56 +425,42 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
         if (errorMessage) {
             classes.push('playback-window--error');
         }
+        if (isMinimized) {
+            classes.push('playback-window--minimized');
+        }
+        if (isMaximized) {
+            classes.push('playback-window--maximized');
+        }
         return classes.join(' ');
-    }, [errorMessage, isDragging, isResizing]);
+    }, [errorMessage, isDragging, isMaximized, isMinimized, isResizing]);
 
     const videoId = useMemo(() => `playback-video-${urlId}`, [urlId]);
 
     return (
-        <div
-            className={containerClassName}
-            data-url-id={urlId}
-            style={{
-                width: `${dimensions.width}px`,
-                height: `${dimensions.height}px`,
-                top: `${position.top}px`,
-                left: `${position.left}px`
-            }}
-        >
+        <div className={containerClassName} data-url-id={urlId} style={containerStyle}>
             <div className="playback-window__header" onPointerDown={startDrag} role="presentation">
                 <div className="playback-window__title" title={title || '(제목 없음)'}>
                     {title || '(제목 없음)'}
                 </div>
                 <div className="playback-window__header-actions">
-                    {downloadUrl ? (
-                        <a
-                            className="playback-window__icon-button"
-                            href={downloadUrl}
-                            title="파일 다운로드"
-                            aria-label="파일 다운로드"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M11 5h2v8h3l-4 4-4-4h3z" />
-                                <path d="M5 19h14v2H5z" />
-                            </svg>
-                        </a>
-                    ) : null}
-                    {onReload ? (
-                        <button
-                            type="button"
-                            className="playback-window__icon-button"
-                            title="다시 불러오기"
-                            aria-label="다시 불러오기"
-                            onClick={onReload}
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M12 6a6 6 0 1 0 5.918 5.071l1.97.353A8 8 0 1 1 12 4v2z" />
-                                <path d="M20 4v6h-6l2.146-2.146A6.002 6.002 0 0 0 12 6V4a8.002 8.002 0 0 1 6.854 3.77z" />
-                            </svg>
-                        </button>
-                    ) : null}
+                    <button
+                        type="button"
+                        className="playback-window__icon-button"
+                        title={isMinimized ? '창 복원' : '창 최소화'}
+                        aria-label={isMinimized ? '창 복원' : '창 최소화'}
+                        onClick={handleToggleMinimize}
+                    >
+                        {isMinimized ? <RestoreIcon /> : <MinimizeIcon />}
+                    </button>
+                    <button
+                        type="button"
+                        className="playback-window__icon-button"
+                        title={isMaximized ? '창 복원' : '창 최대화'}
+                        aria-label={isMaximized ? '창 복원' : '창 최대화'}
+                        onClick={handleToggleMaximize}
+                    >
+                        {isMaximized ? <RestoreIcon /> : <MaximizeIcon />}
+                    </button>
                     <button
                         type="button"
                         className="playback-window__icon-button playback-window__close"
@@ -328,6 +493,7 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
                         controls
                         playsInline
                         ref={handleVideoRef}
+                        onLoadedMetadata={handleVideoLoadedMetadata}
                         onCanPlay={handleVideoCanPlay}
                         onError={handleVideoError}
                     />
