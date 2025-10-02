@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FC } from 'react';
+
 import type { CSSProperties, PointerEvent as ReactPointerEvent, SyntheticEvent } from 'react';
 
 interface PlaybackWindowProps {
@@ -252,6 +253,7 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
         setPosition(() => clampPosition(computeInitialPosition(resetDimensions), resetDimensions));
     }, [getDefaultWindowDimensions, streamUrl]);
 
+
     const handlePointerMoveDrag = useCallback(
         (initialPosition: Position, startX: number, startY: number) => (event: PointerEvent) => {
             event.preventDefault();
@@ -365,6 +367,7 @@ export const PlaybackWindow: FC<PlaybackWindowProps> = ({
     const handleVideoLoadedMetadata = useCallback((event: SyntheticEvent<HTMLVideoElement>) => {
         const { videoWidth, videoHeight } = event.currentTarget;
         const nextDimensions = computeWindowDimensions(videoWidth, videoHeight, headerHeightRef.current);
+
         setDimensions(nextDimensions);
         setPosition((current) => {
             const nextPosition = hasInteractedRef.current
