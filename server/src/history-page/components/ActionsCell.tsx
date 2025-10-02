@@ -18,6 +18,7 @@ export interface ActionsCellHandlers {
     onDelete?: (urlId: string) => void;
     onSelectFormat?: (urlId: string) => void;
     onOpenBrowser?: (url: string) => void;
+    onPlay?: (urlId: string) => void;
 }
 
 interface ActionsCellProps extends ActionsCellHandlers, ActionsCellState {
@@ -39,6 +40,7 @@ export const ActionsCell: React.FC<ActionsCellProps> = ({
     onRemoveFile,
     onDelete,
     onSelectFormat,
+    onPlay,
     enableFormatSelection,
     isDownloadPending,
     isStopPending,
@@ -87,6 +89,8 @@ export const ActionsCell: React.FC<ActionsCellProps> = ({
         ? handleClick(onSelectFormat)
         : handleClick(onDownload);
 
+    const handlePlay = handleClick(onPlay);
+
     return (
         <>
             <button
@@ -126,6 +130,18 @@ export const ActionsCell: React.FC<ActionsCellProps> = ({
                 <span className="spinner" aria-hidden="true" />
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M11.292 16.706a1 1 0 0 0 1.416 0l3-3a1 1 0 0 0-1.414-1.414L13 13.586V4a1 1 0 0 0-2 0v9.586l-1.293-1.293a1 1 0 0 0-1.414 1.414zM17 19H7a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2z"/>
+                </svg>
+            </button>
+            <button
+                className="icon-button play-button"
+                data-url-id={urlId}
+                title={fileExists ? '파일 재생' : '재생할 파일이 없습니다.'}
+                aria-label="파일 재생"
+                disabled={!fileExists || Boolean(isFormatSelect)}
+                onClick={handlePlay}
+            >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11-6.86a1 1 0 0 0 0-1.7l-11-6.86A1 1 0 0 0 8 5.14z" />
                 </svg>
             </button>
             <button

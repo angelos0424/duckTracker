@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState, type FC } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 import { HistoryTable } from '../../components/HistoryTable.js';
 import { Pagination } from '../../components/Pagination.js';
 import { SearchForm } from '../../components/SearchForm.js';
 import type { HistoryPageBootstrap } from '../types.js';
 import { AddDownloadDialog } from './AddDownloadDialog.js';
 import { HistoryCardList } from '../../components/HistoryCardList.js';
+import { PlaybackWindow } from './PlaybackWindow.js';
 import { useBusyMap } from '../hooks/useBusyMap.js';
 import { useDialogState } from '../hooks/useDialogState.js';
 import { useHistoryWebSocket } from '../hooks/useHistoryWebSocket.js';
@@ -29,6 +30,12 @@ function toBooleanMap(source: Record<string, boolean>): Record<string, boolean> 
     return { ...source };
 }
 
+interface PlaybackSession {
+    urlId: string;
+    title: string;
+    cacheKey: number;
+}
+
 export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const [items, setItems] = useState<HistoryItem[]>(() => cloneItems(props.items));
     const downloadBusy = useBusyMap();
@@ -37,6 +44,7 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const removeBusy = useBusyMap();
     const deleteBusy = useBusyMap();
     const formatBusy = useBusyMap();
+    const [playback, setPlayback] = useState<PlaybackSession | null>(null);
 
     const dialog = useDialogState(props.checkFormatList);
     const dialogState = dialog.state;
@@ -495,6 +503,63 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
 
     useHistoryWebSocket(props.wsPath, updateItemState);
 
+    const handlePlay = useCallback(
+        (urlId: string) => {
+            const item = items.find((entry) => entry.urlId === urlId);
+            if (!item || !item.filePath) {
+                window.alert('재생할 수 있는 파일이 없습니다. 다운로드가 완료되었는지 확인해주세요.');
+                return;
+            }
+
+            const safeTitle = item.title?.trim() || '(제목 없음)';
+            setPlayback({ urlId, title: safeTitle, cacheKey: Date.now() });
+        },
+        [items]
+    );
+
+    const handleClosePlayback = useCallback(() => {
+        setPlayback(null);
+    }, []);
+
+    const handleReloadPlayback = useCallback(() => {
+        setPlayback((previous) => (previous ? { ...previous, cacheKey: Date.now() } : previous));
+    }, []);
+
+    useEffect(() => {
+        if (!playback) {
+            return;
+        }
+        setPlayback((previous) => {
+            if (!previous) {
+                return previous;
+            }
+            const item = items.find((entry) => entry.urlId === previous.urlId);
+            if (!item || !item.filePath) {
+                return null;
+            }
+            const nextTitle = item.title?.trim() || '(제목 없음)';
+            if (nextTitle !== previous.title) {
+                return { ...previous, title: nextTitle };
+            }
+            return previous;
+        });
+    }, [items, playback?.urlId]);
+
+    const playbackStreamUrl = useMemo(() => {
+        if (!playback) {
+            return '';
+        }
+        const base = `/history/${encodeURIComponent(playback.urlId)}/stream`;
+        return `${base}?v=${playback.cacheKey}`;
+    }, [playback]);
+
+    const playbackDownloadUrl = useMemo(() => {
+        if (!playback) {
+            return '';
+        }
+        return `/history/${encodeURIComponent(playback.urlId)}/file`;
+    }, [playback]);
+
     const summary = useMemo(
         () => ({
             total: props.total,
@@ -556,7 +621,8 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                                     onRemoveFile: handleRemoveFile,
                                     onDelete: handleDelete,
                                     onSelectFormat: handleFormatSelectionRequest,
-                                    onOpenBrowser: handleOpenBrowser
+                                    onOpenBrowser: handleOpenBrowser,
+                                    onPlay: handlePlay
                                 }}
                                 pending={{
                                     download: toBooleanMap(downloadBusy.state),
@@ -582,7 +648,8 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                                 onRemoveFile: handleRemoveFile,
                                 onDelete: handleDelete,
                                 onSelectFormat: handleFormatSelectionRequest,
-                                onOpenBrowser: handleOpenBrowser
+                                onOpenBrowser: handleOpenBrowser,
+                                onPlay: handlePlay
                             }}
                             pending={{
                                 download: toBooleanMap(downloadBusy.state),
@@ -625,6 +692,16 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                 onSelectFormat={dialog.selectFormat}
                 onBack={dialogState.mode === 'format' ? dialog.backToUrl : undefined}
             />
+            {playback ? (
+                <PlaybackWindow
+                    urlId={playback.urlId}
+                    title={playback.title}
+                    streamUrl={playbackStreamUrl}
+                    downloadUrl={playbackDownloadUrl}
+                    onClose={handleClosePlayback}
+                    onReload={handleReloadPlayback}
+                />
+            ) : null}
         </>
     );
 };

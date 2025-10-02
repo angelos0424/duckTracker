@@ -480,6 +480,10 @@ input {
     color: #2563eb;
 }
 
+.play-button {
+    color: #14b8a6;
+}
+
 .remove-file-button {
     color: #f59e0b;
 }
@@ -517,6 +521,147 @@ input {
 
 .history-card-row + .history-card-row {
     margin-top: 16px;
+}
+
+.playback-window {
+    position: fixed;
+    z-index: 1600;
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 18px;
+    box-shadow: 0 22px 48px rgba(15, 23, 42, 0.32);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-width: 260px;
+    min-height: 146px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    user-select: none;
+}
+
+.playback-window--dragging .playback-window__header {
+    cursor: grabbing;
+    background: rgba(15, 23, 42, 0.92);
+}
+
+.playback-window--resizing .playback-window__resize-handle {
+    opacity: 1;
+}
+
+.playback-window__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(15, 23, 42, 0.86);
+    cursor: grab;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.playback-window__title {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.playback-window__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.playback-window__icon-button {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #e2e8f0;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.playback-window__icon-button[href] {
+    text-decoration: none;
+}
+
+.playback-window__icon-button svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.playback-window__icon-button:hover,
+.playback-window__icon-button:focus-visible {
+    background: rgba(99, 102, 241, 0.16);
+    border-color: rgba(99, 102, 241, 0.32);
+    outline: none;
+}
+
+.playback-window__icon-button:focus-visible {
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
+.playback-window__close {
+    color: #f87171;
+}
+
+.playback-window__body {
+    flex: 1;
+    position: relative;
+    background: #0b1120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.playback-window__video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.playback-window__error {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.playback-window__resize-handle {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    right: 8px;
+    bottom: 8px;
+    cursor: nwse-resize;
+    opacity: 0.7;
+}
+
+.playback-window__resize-handle::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-right: 2px solid rgba(148, 163, 184, 0.7);
+    border-bottom: 2px solid rgba(148, 163, 184, 0.7);
+    border-radius: 2px;
+}
+
+.playback-window--error .playback-window__body {
+    background: rgba(15, 23, 42, 0.9);
+}
+
+.playback-window--error .playback-window__icon-button {
+    color: #fbbf24;
 }
 
 .history-card-wrapper {
