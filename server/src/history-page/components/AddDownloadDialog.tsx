@@ -18,10 +18,10 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({ enableForm
                     유효한 URL을 입력해주세요.
                 </p>
                 <div className="dialog-buttons">
-                    <button type="button" className="secondary" data-action="cancel-dialog">
+                    <button type="button" className="button button--outline" data-action="cancel-dialog">
                         취소
                     </button>
-                    <button type="submit" className="primary">
+                    <button type="submit" className="button button--primary">
                         {enableFormatSelection ? '다운로드 요청' : '다운로드 요청'}
                     </button>
                 </div>
