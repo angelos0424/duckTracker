@@ -19,6 +19,14 @@ interface AddDownloadDialogProps {
     onBack?: () => void;
 }
 
+function parseFormatLabel(label: string): string[] {
+    const segments = label
+        .split(/\s*\|\s*/u)
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+    return segments.length > 0 ? segments : [label];
+}
+
 export const AddDownloadDialog: FC<AddDownloadDialogProps> = ({
     open,
     mode,
@@ -63,19 +71,26 @@ export const AddDownloadDialog: FC<AddDownloadDialogProps> = ({
                     }}
                 >
                     {isFormatMode ? (
-                        <div className="format-options">
+                        <div className="format-options" role="radiogroup" aria-label="포맷 선택">
                             {formatOptions.length > 0 ? (
                                 formatOptions.map((option) => (
-                                    <label className="format-option" key={option.id}>
-                                        <input
-                                            type="radio"
-                                            name="formatOption"
-                                            value={option.id}
-                                            checked={selectedFormatId === option.id}
-                                            onChange={() => onSelectFormat(option.id)}
-                                        />
-                                        <span className="format-option-label">{option.label}</span>
-                                    </label>
+                                    <button
+                                        type="button"
+                                        key={option.id}
+                                        role="radio"
+                                        aria-checked={selectedFormatId === option.id}
+                                        className={`format-option${selectedFormatId === option.id ? ' format-option--selected' : ''}`}
+                                        onClick={() => onSelectFormat(option.id)}
+                                        title={option.label}
+                                    >
+                                        <span className="format-option__chips">
+                                            {parseFormatLabel(option.label).map((segment, index) => (
+                                                <span className="format-option__chip" key={`${option.id}-chip-${index}`}>
+                                                    {segment}
+                                                </span>
+                                            ))}
+                                        </span>
+                                    </button>
                                 ))
                             ) : (
                                 <p className="form-helper">선택 가능한 포맷이 없습니다. 잠시 후 다시 시도해주세요.</p>

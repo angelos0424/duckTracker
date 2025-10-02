@@ -1098,6 +1098,11 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             return '0';
         }
 
+        if (rounded > 1000) {
+            const megabits = rounded / 1000;
+            return `${megabits.toFixed(2)}Mbps`;
+        }
+
         return `${rounded} kbps`;
     }
 
@@ -1206,13 +1211,13 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             parts.push(bitrateLabel);
         }
 
-        if (item.ext) {
-            parts.push(item.ext);
-        }
-
         const sizeLabel = this.formatFilesizeLabel(item.filesize);
         if (sizeLabel) {
             parts.push(sizeLabel);
+        }
+
+        if (item.ext) {
+          parts.push(item.ext);
         }
 
         return parts.join(' | ');
