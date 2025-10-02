@@ -285,6 +285,7 @@ export const HistoryCardList: React.FC<HistoryCardListProps> = ({
         <div className="history-cards">
             {items.map((item, index) => {
                 const urlId = item.urlId || '';
+
                 const pendingState: ActionsCellState = {
                     isDownloadPending: Boolean(pending?.download?.[urlId]),
                     isStopPending: Boolean(pending?.stop?.[urlId]),
