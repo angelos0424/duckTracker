@@ -1,6 +1,7 @@
 import React from 'react';
 import type { HistoryItem } from '../types.js';
 import { formatFileSize, getProgressFromItem } from '../utils/format.js';
+import { getStatusLabel } from '../utils/status.js';
 import { ProgressCell } from './ProgressCell.js';
 import { ActionsCell, type ActionsCellHandlers, type ActionsCellState } from './ActionsCell.js';
 
@@ -15,6 +16,7 @@ export const TableRow: React.FC<TableRowProps> = ({ item, enableFormatSelection,
     const title = item.title?.trim() || '';
     const urlId = item.urlId || '';
     const status = item.status || 'unknown';
+    const statusLabel = getStatusLabel(status);
     const createdAt = item.createdAt || '-';
     const updatedAt = item.updatedAt || '-';
     const fileAvailable = Boolean(item.filePath);
@@ -30,11 +32,45 @@ export const TableRow: React.FC<TableRowProps> = ({ item, enableFormatSelection,
             ? `${item.fileSizeBytes.toLocaleString()} bytes`
             : undefined;
 
+    const handleTitleLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+        if (!sourceUrl || !handlers?.onOpenBrowser) {
+            return;
+        }
+        event.preventDefault();
+        handlers.onOpenBrowser(sourceUrl);
+    };
+
+    const handleTitleLinkKeyDown = (event: React.KeyboardEvent<HTMLAnchorElement>) => {
+        if (event.key === ' ' || event.key === 'Spacebar') {
+            event.preventDefault();
+            if (sourceUrl && handlers?.onOpenBrowser) {
+                handlers.onOpenBrowser(sourceUrl);
+            }
+        }
+    };
+
     return (
         <tr data-url-id={urlId} data-status={status} data-source-url={sourceUrl} data-file-path={item.filePath || ''}>
             <td className="title" data-label="제목">
                 <div className="title-text" title={title || '(제목 없음)'}>
-                    {title ? title : <span className="muted">(제목 없음)</span>}
+                    {title ? (
+                        sourceUrl ? (
+                            <a
+                                href={sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="title-link"
+                                onClick={handleTitleLinkClick}
+                                onKeyDown={handleTitleLinkKeyDown}
+                            >
+                                {title}
+                            </a>
+                        ) : (
+                            title
+                        )
+                    ) : (
+                        <span className="muted">(제목 없음)</span>
+                    )}
                 </div>
                 <div className="title-url" title={urlDisplay || '-'}>
                     {sourceUrl ? (
@@ -49,7 +85,7 @@ export const TableRow: React.FC<TableRowProps> = ({ item, enableFormatSelection,
                 </div>
             </td>
             <td className="status" data-label="상태">
-                <span className={statusClass}>{status}</span>
+                <span className={statusClass}>{statusLabel}</span>
             </td>
             <td className="progress" data-label="진행률">
                 <ProgressCell progress={progressValue} />

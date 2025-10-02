@@ -196,6 +196,9 @@ async function handleDownload(_req: IncomingMessage, res: ServerResponse): Promi
         const targetUrl = body.url as string | undefined;
         const urlId = body.urlId as string | undefined;
         const title = (body.title as string | undefined) ?? '';
+        // 외부에서 오는 요청.
+        const skipFormatCheck = true
+        const enforceFormatCheck = false;
 
         if (!targetUrl || !urlId) {
             jsonResponse(res, 400, { error: 'url and urlId are required' });
@@ -212,9 +215,15 @@ async function handleDownload(_req: IncomingMessage, res: ServerResponse): Promi
 
         const formatId = typeof body.formatId === 'string' ? body.formatId : undefined;
 
-        const scheduleResult = await downloadManager.schedule({ url: targetUrl, urlId, title, formatId });
+        const scheduleResult = await downloadManager.schedule({
+            url: targetUrl,
+            urlId,
+            title,
+            formatId,
+            skipFormatCheck
+        });
 
-        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+        if (enforceFormatCheck && scheduleResult.requiresFormatSelection) {
             const selectionState =
                 downloadManager.getState(urlId) || ({
                     url: targetUrl,
@@ -254,6 +263,10 @@ async function handleHistoryDownloadRequest(req: IncomingMessage, res: ServerRes
     try {
         const body = await collectRequestBody(req);
         const targetUrl = body.url;
+        const skipFormatCheck =
+            body?.skipFormatCheck === true ||
+            (config.checkFormatList && body?.enforceFormatCheck === false);
+        const enforceFormatCheck = config.checkFormatList && !skipFormatCheck;
 
         if (typeof targetUrl !== 'string' || !isValidUrl(targetUrl)) {
             console.warn('[history] Invalid download request url', { targetUrl });
@@ -279,9 +292,15 @@ async function handleHistoryDownloadRequest(req: IncomingMessage, res: ServerRes
 
         const formatId = typeof body.formatId === 'string' ? body.formatId : undefined;
 
-        const scheduleResult = await downloadManager.schedule({ url: targetUrl, urlId: derivedId, title: '', formatId });
+        const scheduleResult = await downloadManager.schedule({
+            url: targetUrl,
+            urlId: derivedId,
+            title: '',
+            formatId,
+            skipFormatCheck
+        });
 
-        if (config.checkFormatList && scheduleResult.requiresFormatSelection) {
+        if (enforceFormatCheck && scheduleResult.requiresFormatSelection) {
             const selectionState =
                 downloadManager.getState(derivedId) || ({
                     url: targetUrl,

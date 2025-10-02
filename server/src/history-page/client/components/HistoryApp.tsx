@@ -4,6 +4,7 @@ import { Pagination } from '../../components/Pagination.js';
 import { SearchForm } from '../../components/SearchForm.js';
 import type { HistoryPageBootstrap } from '../types.js';
 import { AddDownloadDialog } from './AddDownloadDialog.js';
+import { HistoryCardList } from '../../components/HistoryCardList.js';
 import { useBusyMap } from '../hooks/useBusyMap.js';
 import { useDialogState } from '../hooks/useDialogState.js';
 import { useHistoryWebSocket } from '../hooks/useHistoryWebSocket.js';
@@ -40,7 +41,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const dialog = useDialogState(props.checkFormatList);
     const dialogState = dialog.state;
 
-    console.log('dialogState', dialogState);
     const updateItemState = useCallback((state: HistoryItem | null) => {
 
         if (!state || !state.urlId) {
@@ -223,6 +223,14 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
         },
         [removeBusy, updateItemState]
     );
+
+    const handleOpenBrowser = useCallback((url: string) => {
+        if (!url) {
+            return;
+        }
+
+        window.open(url, '_blank', 'noopener');
+    }, []);
 
     const handleDelete = useCallback(
         async (urlId: string) => {
@@ -502,46 +510,103 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
 
     return (
         <>
-            <div className="card">
-                <h1>다운로드 이력</h1>
-                <div className="toolbar">
+            <div className="history-shell">
+                <header className="history-shell__header">
+                    <div>
+                        <h1 className="history-shell__title">다운로드 관리</h1>
+                        <p className="history-shell__subtitle">파일 다운로드 상태를 확인하고 관리하세요.</p>
+                    </div>
+                    <div className="history-shell__header-actions">
+                        <button type="button" className="button button--ghost" disabled>
+                            관리
+                        </button>
+                    </div>
+                </header>
+                <div className="history-toolbar">
                     <SearchForm searchTerm={summary.searchTerm} />
-                    <div className="toolbar-actions">
-                        <button type="button" className="secondary" data-action="refresh" onClick={() => window.location.reload()}>
+                    <div className="history-toolbar__actions">
+                        <button
+                            type="button"
+                            className="button button--outline"
+                            data-action="refresh"
+                            onClick={() => window.location.reload()}
+                        >
                             새로고침
                         </button>
-                        <button type="button" className="primary" data-action="open-add-dialog" onClick={dialog.openDialog}>
+                        <button
+                            type="button"
+                            className="button button--primary"
+                            data-action="open-add-dialog"
+                            onClick={dialog.openDialog}
+                        >
                             다운로드 추가
                         </button>
                     </div>
                 </div>
-                <HistoryTable
-                    items={items}
-                    enableFormatSelection={props.checkFormatList}
-                    handlers={{
-                        onDownload: handleDownload,
-                        onStop: handleStop,
-                        onResume: handleResume,
-                        onRemoveFile: handleRemoveFile,
-                        onDelete: handleDelete,
-                        onSelectFormat: handleFormatSelectionRequest
-                    }}
-                    pending={{
-                        download: toBooleanMap(downloadBusy.state),
-                        stop: toBooleanMap(stopBusy.state),
-                        resume: toBooleanMap(resumeBusy.state),
-                        remove: toBooleanMap(removeBusy.state),
-                        delete: toBooleanMap(deleteBusy.state),
-                        format: dialogState.mode === 'format' && dialogState.formatUrlId
-                            ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
-                            : toBooleanMap(formatBusy.state)
-                    }}
-                />
-                <div className="summary">
-                    <span>
+                <div className="history-content">
+                    <div className="history-table-wrapper">
+                        <div className="history-table-scroll">
+                            <HistoryTable
+                                items={items}
+                                enableFormatSelection={props.checkFormatList}
+                                handlers={{
+                                    onDownload: handleDownload,
+                                    onStop: handleStop,
+                                    onResume: handleResume,
+                                    onRemoveFile: handleRemoveFile,
+                                    onDelete: handleDelete,
+                                    onSelectFormat: handleFormatSelectionRequest,
+                                    onOpenBrowser: handleOpenBrowser
+                                }}
+                                pending={{
+                                    download: toBooleanMap(downloadBusy.state),
+                                    stop: toBooleanMap(stopBusy.state),
+                                    resume: toBooleanMap(resumeBusy.state),
+                                    remove: toBooleanMap(removeBusy.state),
+                                    delete: toBooleanMap(deleteBusy.state),
+                                    format: dialogState.mode === 'format' && dialogState.formatUrlId
+                                        ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
+                                        : toBooleanMap(formatBusy.state)
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <div className="history-card-region">
+                        <HistoryCardList
+                            items={items}
+                            enableFormatSelection={props.checkFormatList}
+                            handlers={{
+                                onDownload: handleDownload,
+                                onStop: handleStop,
+                                onResume: handleResume,
+                                onRemoveFile: handleRemoveFile,
+                                onDelete: handleDelete,
+                                onSelectFormat: handleFormatSelectionRequest,
+                                onOpenBrowser: handleOpenBrowser
+                            }}
+                            pending={{
+                                download: toBooleanMap(downloadBusy.state),
+                                stop: toBooleanMap(stopBusy.state),
+                                resume: toBooleanMap(resumeBusy.state),
+                                remove: toBooleanMap(removeBusy.state),
+                                delete: toBooleanMap(deleteBusy.state),
+                                format: dialogState.mode === 'format' && dialogState.formatUrlId
+                                    ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
+                                    : toBooleanMap(formatBusy.state)
+                            }}
+                        />
+                    </div>
+                </div>
+                <div className="history-summary">
+                    <span className="history-summary__info">
                         총 {summary.total.toLocaleString()}건 중 {summary.showingFrom.toLocaleString()}-{summary.showingTo.toLocaleString()} 표시
                     </span>
-                    <Pagination page={summary.page} totalPages={summary.totalPages} pageSize={summary.pageSize} searchTerm={summary.searchTerm} />
+                    <Pagination
+                        page={summary.page}
+                        totalPages={summary.totalPages}
+                        pageSize={summary.pageSize}
+                        searchTerm={summary.searchTerm}
+                    />
                 </div>
             </div>
             <AddDownloadDialog
