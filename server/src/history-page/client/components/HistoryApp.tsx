@@ -535,9 +535,35 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                         </button>
                     </div>
                 </div>
-                <div className="history-table-wrapper">
-                    <div className="history-table-scroll">
-                        <HistoryTable
+                <div className="history-content">
+                    <div className="history-table-wrapper">
+                        <div className="history-table-scroll">
+                            <HistoryTable
+                                items={items}
+                                enableFormatSelection={props.checkFormatList}
+                                handlers={{
+                                    onDownload: handleDownload,
+                                    onStop: handleStop,
+                                    onResume: handleResume,
+                                    onRemoveFile: handleRemoveFile,
+                                    onDelete: handleDelete,
+                                    onSelectFormat: handleFormatSelectionRequest
+                                }}
+                                pending={{
+                                    download: toBooleanMap(downloadBusy.state),
+                                    stop: toBooleanMap(stopBusy.state),
+                                    resume: toBooleanMap(resumeBusy.state),
+                                    remove: toBooleanMap(removeBusy.state),
+                                    delete: toBooleanMap(deleteBusy.state),
+                                    format: dialogState.mode === 'format' && dialogState.formatUrlId
+                                        ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
+                                        : toBooleanMap(formatBusy.state)
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <div className="history-card-region">
+                        <HistoryCardList
                             items={items}
                             enableFormatSelection={props.checkFormatList}
                             handlers={{
@@ -561,28 +587,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                         />
                     </div>
                 </div>
-                <HistoryCardList
-                    items={items}
-                    enableFormatSelection={props.checkFormatList}
-                    handlers={{
-                        onDownload: handleDownload,
-                        onStop: handleStop,
-                        onResume: handleResume,
-                        onRemoveFile: handleRemoveFile,
-                        onDelete: handleDelete,
-                        onSelectFormat: handleFormatSelectionRequest
-                    }}
-                    pending={{
-                        download: toBooleanMap(downloadBusy.state),
-                        stop: toBooleanMap(stopBusy.state),
-                        resume: toBooleanMap(resumeBusy.state),
-                        remove: toBooleanMap(removeBusy.state),
-                        delete: toBooleanMap(deleteBusy.state),
-                        format: dialogState.mode === 'format' && dialogState.formatUrlId
-                            ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
-                            : toBooleanMap(formatBusy.state)
-                    }}
-                />
                 <div className="history-summary">
                     <span className="history-summary__info">
                         총 {summary.total.toLocaleString()}건 중 {summary.showingFrom.toLocaleString()}-{summary.showingTo.toLocaleString()} 표시

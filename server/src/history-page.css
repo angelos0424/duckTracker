@@ -45,12 +45,23 @@ input {
     max-width: 1100px;
     margin: 0 auto;
     padding: 32px 16px 48px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 @media (min-width: 768px) {
     .history-shell {
         padding: 48px 24px 64px;
     }
+}
+
+.history-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-height: 0;
 }
 
 .history-shell__header {
@@ -477,14 +488,89 @@ input {
     color: #b91c1c;
 }
 
+.history-card-region {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
 .history-cards {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 16px;
-    margin-bottom: 24px;
+}
+
+.history-card-region .history-cards {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 0;
+    padding-right: 4px;
+    padding-bottom: 12px;
+}
+
+.history-card-row {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.history-card-row + .history-card-row {
+    margin-top: 16px;
+}
+
+.history-card-wrapper {
+    will-change: transform;
+    touch-action: pan-y;
+}
+
+.history-card-wrapper--animate {
+    transition: transform 0.22s ease;
+}
+
+.history-card-wrapper--disabled .history-card {
+    opacity: 0.7;
+}
+
+.history-card-swipe {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.history-card-swipe__action {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+}
+
+.history-card-swipe__action span {
+    pointer-events: none;
+}
+
+.history-card-swipe__action--left {
+    justify-content: flex-start;
+    padding-left: 24px;
+    background: linear-gradient(90deg, rgba(239, 68, 68, 0.55), rgba(220, 38, 38, 0.92));
+}
+
+.history-card-swipe__action--right {
+    justify-content: flex-end;
+    padding-right: 24px;
+    background: linear-gradient(270deg, rgba(239, 68, 68, 0.55), rgba(220, 38, 38, 0.92));
 }
 
 @media (min-width: 960px) {
-    .history-cards {
+    .history-card-region {
         display: none;
     }
 }
@@ -494,10 +580,10 @@ input {
     border-radius: 16px;
     border: 1px solid rgba(15, 23, 42, 0.08);
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-    padding: 18px;
+    padding: 18px 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
 }
 
 .history-card--empty {
@@ -506,43 +592,56 @@ input {
     font-style: italic;
 }
 
-.history-card__header {
+.history-card__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.5;
+    color: #0f172a;
+}
+
+.history-card__status-row {
     display: flex;
-    justify-content: space-between;
+    align-items: center;
     gap: 12px;
 }
 
-.history-card__title {
-    flex: 1;
-}
-
-.history-card__title-text {
-    font-weight: 600;
-    margin-bottom: 6px;
-    line-height: 1.4;
-}
-
-.history-card__url {
-    font-size: 0.82rem;
-    color: #64748b;
-    word-break: break-all;
+.history-card__status-row .status-badge {
+    flex-shrink: 0;
 }
 
 .history-card__progress {
-    padding-top: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.history-card__progress .progress-wrapper {
+    width: 100%;
 }
 
 .history-card__meta {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 18px;
     font-size: 0.85rem;
     color: #475569;
+    margin: 0;
 }
 
-.history-card__meta dt {
+.history-card__meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.history-card__meta-item dt {
+    margin: 0;
     font-weight: 600;
-    margin-bottom: 4px;
+    color: #1f2937;
+}
+
+.history-card__meta-item dd {
+    margin: 0;
 }
 
 .history-card__actions {
