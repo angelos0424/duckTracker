@@ -104,7 +104,7 @@ export const AddDownloadDialog: FC<AddDownloadDialogProps> = ({
                         {isFormatMode && onBack ? (
                             <button
                                 type="button"
-                                className="secondary"
+                                className="button button--outline"
                                 onClick={(event) => {
                                     event.preventDefault();
                                     onBack();
@@ -116,7 +116,7 @@ export const AddDownloadDialog: FC<AddDownloadDialogProps> = ({
                         ) : null}
                         <button
                             type="button"
-                            className="secondary"
+                            className="button button--outline"
                             data-action="cancel-dialog"
                             onClick={(event) => {
                                 event.preventDefault();
@@ -126,7 +126,11 @@ export const AddDownloadDialog: FC<AddDownloadDialogProps> = ({
                         >
                             취소
                         </button>
-                        <button type="submit" className="primary" disabled={isSubmitting || (isFormatMode && formatOptions.length === 0)}>
+                        <button
+                            type="submit"
+                            className="button button--primary"
+                            disabled={isSubmitting || (isFormatMode && formatOptions.length === 0)}
+                        >
                             {confirmLabel}
                         </button>
                     </div>

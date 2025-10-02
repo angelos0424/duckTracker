@@ -20,16 +20,16 @@ interface HistoryTableProps {
 }
 
 export const HistoryTable: React.FC<HistoryTableProps> = ({ items, enableFormatSelection, handlers, pending }) => (
-    <table role="grid">
+    <table className="history-table" role="grid">
         <thead>
             <tr>
-                <th>제목</th>
-                <th>상태</th>
-                <th>진행률</th>
-                <th>크기</th>
-                <th>생성일</th>
-                <th>업데이트</th>
-                <th className="actions-column">작업</th>
+                <th scope="col">제목</th>
+                <th scope="col">상태</th>
+                <th scope="col">진행률</th>
+                <th scope="col">크기</th>
+                <th scope="col">생성일</th>
+                <th scope="col">업데이트</th>
+                <th scope="col" className="actions-column">작업</th>
             </tr>
         </thead>
         <tbody>

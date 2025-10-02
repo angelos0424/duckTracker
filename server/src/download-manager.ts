@@ -19,6 +19,7 @@ export interface DownloadRequest {
     urlId: string;
     title?: string;
     formatId?: string;
+    skipFormatCheck?: boolean;
 }
 
 export interface DownloadSnapshot {
@@ -855,7 +856,9 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
     }
 
     async schedule(request: DownloadRequest): Promise<ScheduleResult> {
-        if (this.config.checkFormatList && !request.formatId) {
+        const shouldCheckFormats = this.config.checkFormatList && request.skipFormatCheck !== true;
+
+        if (shouldCheckFormats && !request.formatId) {
             const formatInfo = await this.getFormatList(request);
             this.formatCache.set(request.urlId, formatInfo);
 
@@ -885,7 +888,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             };
         }
 
-        if (this.config.checkFormatList && request.formatId) {
+        if (shouldCheckFormats && request.formatId) {
             const cached = this.formatCache.get(request.urlId) || (await this.getFormatList(request));
             this.formatCache.set(request.urlId, cached);
 
