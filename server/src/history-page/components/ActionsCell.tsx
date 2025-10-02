@@ -110,7 +110,7 @@ export const ActionsCell: React.FC<ActionsCellProps> = ({
                 onClick={handleClick(onResume)}
             >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8 5v14l11-7z" />
+                    <path d="M12 3a8.959 8.959 0 0 0-7 3.339V4H3v6h6V8H6.274a6.982 6.982 0 1 1-1.054 5.751l-1.936.5A9 9 0 1 0 12 3z"/>
                 </svg>
             </button>
             <button
@@ -125,7 +125,7 @@ export const ActionsCell: React.FC<ActionsCellProps> = ({
             >
                 <span className="spinner" aria-hidden="true" />
                 <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 20h14v-2H5v2zm7-18l-5.5 6h3.5v6h4v-6H17L12 2z" />
+                    <path d="M11.292 16.706a1 1 0 0 0 1.416 0l3-3a1 1 0 0 0-1.414-1.414L13 13.586V4a1 1 0 0 0-2 0v9.586l-1.293-1.293a1 1 0 0 0-1.414 1.414zM17 19H7a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2z"/>
                 </svg>
             </button>
             <button
