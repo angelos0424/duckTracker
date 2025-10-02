@@ -122,6 +122,120 @@ function resolveWithinDownloadDir(filePath: string | null | undefined): string {
     return absolute;
 }
 
+class HistoryFileError extends Error {
+    public readonly statusCode: number;
+    public readonly payload: { error: string };
+
+    constructor(statusCode: number, message: string) {
+        super(message);
+        this.statusCode = statusCode;
+        this.payload = { error: message };
+        this.name = 'HistoryFileError';
+    }
+}
+
+type DownloadRecord = NonNullable<ReturnType<typeof getDownloadState>>;
+
+interface HistoryFileResolution {
+    record: DownloadRecord;
+    resolvedPath: string;
+    stats: fs.Stats;
+}
+
+async function resolveHistoryFileOrThrow(urlId: string): Promise<HistoryFileResolution> {
+    const record = getDownloadState(urlId);
+
+    if (!record) {
+        throw new HistoryFileError(404, '다운로드 정보를 찾을 수 없습니다.');
+    }
+
+    let resolved = resolveWithinDownloadDir(record.filePath);
+
+    if (!resolved) {
+        console.warn('[history] File download outside directory', { urlId, filePath: record.filePath });
+        throw new HistoryFileError(403, 'File outside of download directory');
+    }
+
+    let stats: fs.Stats;
+    try {
+        stats = await fs.promises.stat(resolved);
+    } catch (statError) {
+        const err = statError as NodeJS.ErrnoException;
+        if (err && err.code === 'ENOENT') {
+            const fallback = downloadManager.findExistingFileById(urlId);
+            if (!fallback) {
+                console.warn('[history] File download fallback not found', { urlId });
+                throw new HistoryFileError(404, 'File not found');
+            }
+
+            const normalisedFallback = resolveWithinDownloadDir(fallback);
+            if (!normalisedFallback) {
+                console.warn('[history] File download fallback outside directory', { urlId, fallback });
+                throw new HistoryFileError(403, 'File outside of download directory');
+            }
+
+            try {
+                stats = await fs.promises.stat(normalisedFallback);
+                resolved = normalisedFallback;
+                const relative = path.relative(config.downloadDir, resolved);
+                const clientPath =
+                    relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : resolved;
+                recordDownloadFilePath({
+                    urlId,
+                    filePath: clientPath,
+                    fileSizeBytes: stats.size
+                });
+            } catch (fallbackError) {
+                const fallbackErr = fallbackError as NodeJS.ErrnoException;
+                console.error('[history] File download fallback stat failed', {
+                    urlId,
+                    error: fallbackErr.message
+                });
+                throw new HistoryFileError(fallbackErr.code === 'ENOENT' ? 404 : 500, 'File not found');
+            }
+        } else {
+            console.error('[history] File stat failed', { urlId, error: err?.message });
+            throw new HistoryFileError(500, 'File not found');
+        }
+    }
+
+    return { record, resolvedPath: resolved, stats };
+}
+
+function getContentTypeForPath(filePath: string): string {
+    const extension = path.extname(filePath).toLowerCase();
+    switch (extension) {
+        case '.mp4':
+            return 'video/mp4';
+        case '.mkv':
+        case '.mk3d':
+        case '.mka':
+        case '.mks':
+            return 'video/x-matroska';
+        case '.webm':
+            return 'video/webm';
+        case '.mov':
+        case '.qt':
+            return 'video/quicktime';
+        case '.avi':
+            return 'video/x-msvideo';
+        case '.mp3':
+            return 'audio/mpeg';
+        case '.m4a':
+        case '.mp4a':
+            return 'audio/mp4';
+        case '.ogg':
+        case '.oga':
+            return 'audio/ogg';
+        case '.wav':
+            return 'audio/wav';
+        case '.flac':
+            return 'audio/flac';
+        default:
+            return 'application/octet-stream';
+    }
+}
+
 function isValidUrl(candidate: string): boolean {
     try {
         const parsed = new URL(candidate);
@@ -411,73 +525,16 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
             return;
         }
 
-        const record = getDownloadState(urlId);
-        if (!record || !record.filePath) {
-            console.warn('[history] File download missing record', { urlId });
-            jsonResponse(res, 404, { error: 'File not available' });
-            return;
-        }
-
-        let resolved = resolveWithinDownloadDir(record.filePath);
-        if (!resolved) {
-            console.warn('[history] File download outside directory', { urlId, filePath: record.filePath });
-            jsonResponse(res, 403, { error: 'File outside of download directory' });
-            return;
-        }
-
-        let stats: fs.Stats;
-        try {
-            stats = await fs.promises.stat(resolved);
-        } catch (statError) {
-            const err = statError as NodeJS.ErrnoException;
-            if (err && err.code === 'ENOENT') {
-                const fallback = downloadManager.findExistingFileById(urlId);
-                if (!fallback) {
-                    console.warn('[history] File download fallback not found', { urlId });
-                    jsonResponse(res, 404, { error: 'File not found' });
-                    return;
-                }
-
-                const normalisedFallback = resolveWithinDownloadDir(fallback);
-                if (!normalisedFallback) {
-                    console.warn('[history] File download fallback outside directory', { urlId, fallback });
-                    jsonResponse(res, 403, { error: 'File outside of download directory' });
-                    return;
-                }
-
-                try {
-                    stats = await fs.promises.stat(normalisedFallback);
-                    resolved = normalisedFallback;
-                    const relative = path.relative(config.downloadDir, resolved);
-                    const clientPath =
-                        relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? relative : resolved;
-                    recordDownloadFilePath({
-                        urlId,
-                        filePath: clientPath,
-                        fileSizeBytes: stats.size
-                    });
-                } catch (fallbackError) {
-                    const fallbackErr = fallbackError as NodeJS.ErrnoException;
-                    console.error('[history] File download fallback stat failed', { urlId, error: fallbackErr.message });
-                    jsonResponse(res, fallbackErr.code === 'ENOENT' ? 404 : 500, { error: 'File not found' });
-                    return;
-                }
-            } else {
-                console.error('[history] File stat failed', { urlId, error: err.message });
-                jsonResponse(res, 500, { error: 'File not found' });
-                return;
-            }
-        }
-
+        const { resolvedPath, stats } = await resolveHistoryFileOrThrow(urlId);
         res.writeHead(200, {
             'Content-Type': 'application/octet-stream',
             'Content-Length': stats.size,
-            'Content-Disposition': `attachment; filename="${encodeURIComponent(path.basename(resolved))}"`
+            'Content-Disposition': `attachment; filename="${encodeURIComponent(path.basename(resolvedPath))}"`
         });
 
-        const stream = fs.createReadStream(resolved);
+        const stream = fs.createReadStream(resolvedPath);
         stream.on('error', () => {
-            console.error('[history] File stream error', { urlId, filePath: resolved });
+            console.error('[history] File stream error', { urlId, filePath: resolvedPath });
             if (!res.headersSent) {
                 res.writeHead(500);
             }
@@ -485,8 +542,122 @@ async function handleHistoryFileDownload(_req: IncomingMessage, res: ServerRespo
         });
         stream.pipe(res);
     } catch (error) {
+        if (error instanceof HistoryFileError) {
+            jsonResponse(res, error.statusCode, error.payload);
+            return;
+        }
         const err = error as Error;
+        console.error('[history] handleHistoryFileDownload failed', { urlId, error: err.message });
         jsonResponse(res, 500, { error: err.message });
+    }
+}
+
+function writeStreamError(res: ServerResponse, stream: fs.ReadStream, context: Record<string, unknown>): void {
+    stream.on('error', () => {
+        console.error('[history] Stream error', context);
+        if (!res.headersSent) {
+            res.writeHead(500);
+        }
+        res.end();
+    });
+}
+
+async function handleHistoryFileStream(req: IncomingMessage, res: ServerResponse, urlId: string | undefined): Promise<void> {
+    try {
+        if (!urlId) {
+            jsonResponse(res, 400, { error: 'urlId is required' });
+            return;
+        }
+
+        const { resolvedPath, stats } = await resolveHistoryFileOrThrow(urlId);
+        const totalSize = Math.max(0, stats.size);
+        const contentType = getContentTypeForPath(resolvedPath);
+
+        if (totalSize === 0) {
+            res.writeHead(200, {
+                'Content-Type': contentType,
+                'Content-Length': 0,
+                'Accept-Ranges': 'bytes',
+                'Cache-Control': 'no-store'
+            });
+            res.end();
+            return;
+        }
+
+        const rangeHeader = req.headers.range;
+        if (rangeHeader) {
+            const match = /^bytes=(\d*)-(\d*)$/u.exec(rangeHeader.trim());
+            if (!match) {
+                res.writeHead(416, { 'Content-Range': `bytes */${totalSize}` });
+                res.end();
+                return;
+            }
+
+            let start: number;
+            let end: number;
+            const startRaw = match[1];
+            const endRaw = match[2];
+
+            if (startRaw === '' && endRaw !== '') {
+                const suffixLength = Number.parseInt(endRaw, 10);
+                if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+                    res.writeHead(416, { 'Content-Range': `bytes */${totalSize}` });
+                    res.end();
+                    return;
+                }
+                end = totalSize - 1;
+                start = Math.max(0, totalSize - suffixLength);
+            } else {
+                start = startRaw ? Number.parseInt(startRaw, 10) : 0;
+                end = endRaw ? Number.parseInt(endRaw, 10) : totalSize - 1;
+                if (!Number.isFinite(start) || !Number.isFinite(end)) {
+                    res.writeHead(416, { 'Content-Range': `bytes */${totalSize}` });
+                    res.end();
+                    return;
+                }
+            }
+
+            if (start < 0 || end < 0 || start > end || start >= totalSize) {
+                res.writeHead(416, { 'Content-Range': `bytes */${totalSize}` });
+                res.end();
+                return;
+            }
+
+            const safeEnd = Math.min(end, totalSize - 1);
+            const safeStart = Math.min(start, safeEnd);
+            const chunkSize = safeEnd - safeStart + 1;
+
+            res.writeHead(206, {
+                'Content-Type': contentType,
+                'Content-Length': chunkSize,
+                'Content-Range': `bytes ${safeStart}-${safeEnd}/${totalSize}`,
+                'Accept-Ranges': 'bytes',
+                'Cache-Control': 'no-store'
+            });
+
+            const stream = fs.createReadStream(resolvedPath, { start: safeStart, end: safeEnd });
+            writeStreamError(res, stream, { urlId, filePath: resolvedPath, start: safeStart, end: safeEnd });
+            stream.pipe(res);
+            return;
+        }
+
+        res.writeHead(200, {
+            'Content-Type': contentType,
+            'Content-Length': totalSize,
+            'Accept-Ranges': 'bytes',
+            'Cache-Control': 'no-store'
+        });
+        const stream = fs.createReadStream(resolvedPath);
+        writeStreamError(res, stream, { urlId, filePath: resolvedPath });
+        stream.pipe(res);
+    } catch (error) {
+        if (error instanceof HistoryFileError) {
+            jsonResponse(res, error.statusCode, error.payload);
+            return;
+        }
+        const err = error as Error;
+        console.error('[history] handleHistoryFileStream failed', { urlId, error: err.message });
+        jsonResponse(res, 500, { error: err.message || '재생을 시작할 수 없습니다.' });
     }
 }
 
@@ -761,9 +932,17 @@ const server = http.createServer((req, res) => {
 
     if (req.method === 'GET' && parsedUrl.pathname && parsedUrl.pathname.startsWith('/history/')) {
         const segments = parsedUrl.pathname.split('/').filter(Boolean);
-        if (segments.length === 3 && segments[2] === 'file') {
-            void handleHistoryFileDownload(req, res, decodeURIComponent(segments[1]));
-            return;
+        if (segments.length === 3) {
+            const action = segments[2];
+            const urlId = decodeURIComponent(segments[1]);
+            if (action === 'file') {
+                void handleHistoryFileDownload(req, res, urlId);
+                return;
+            }
+            if (action === 'stream') {
+                void handleHistoryFileStream(req, res, urlId);
+                return;
+            }
         }
     }
 
