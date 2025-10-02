@@ -1,19 +1,19 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`src/index.ts` boots the HTTP API, WebSocket hub, and download scheduler. Persistence lives in `src/database.ts`, orchestration in `src/download-manager.ts`, shared helpers in `src/utils`, and reusable types in `src/types`. History UI assets compile from `src/history-page` and `src/build` into `dist/history-page`; other bundles target `dist/`. Keep runtime artifacts in `downloads/` out of version control, and treat `newDesign/` as experimental UI unless your change targets it.
+The workspace is split into three surfaces. `electron-app/` hosts the desktop client: Electron main logic in `src/main`, preload bridges in `src/preload`, React UI in `src/renderer`, and shared DTOs in `src/shared`. Browser tooling lives under `chrome_extension/src`, with Jest specs in `src/__tests__`. The backend sits in `server/`; TypeScript sources reside in `src`, history UI assets in `src/history-page`, build scripts in `src/build`, and compiled output in `dist`. Keep runtime artifacts in `downloads/` out of git and treat `newDesign/` as experimental unless explicitly targeting it.
 
 ## Build, Test, and Development Commands
-Run `npm install` to set up dependencies. `npm run dev` starts a ts-node development server with live reloads. `npm run build` runs `tsc` and executes the asset copy scripts under `src/build`. Launch production output with `npm start`, which executes `dist/index.js`; rebuild whenever TypeScript changes.
+Use `cd electron-app && npm install` to respect the Volta-pinned Node version, then `npm run dev` for live reload or `npm run build` for production bundles (`npm run dist:win` / `dist:mac` to package installers). In `chrome_extension/`, run `npm run watch` while iterating and `npm run build` to emit `dist/`. For the API server, `npm install`, `npm run dev` (ts-node with reload), `npm run build` (tsc plus asset copy), and `npm start` to launch `dist/index.js`.
 
 ## Coding Style & Naming Conventions
-TypeScript runs in strict NodeNext mode, so annotate exported surfaces explicitly. Indent with four spaces, keep modules under roughly 120 characters wide, and prefer lowercase hyphenated filenames. Use `PascalCase` for classes, `camelCase` for functions and constants, and reserve comments for invariants or cross-module flows. Run `npm run build` before committing because it doubles as the style and type gate in lieu of a linter.
+All code is TypeScript. Electron files use 4-space indentation, the extension uses 2 spaces, and the server sticks to 4. Components remain PascalCase, hooks use `use`-prefixed camelCase, IPC/WebSocket channels follow the `ipc:feature` / `ws:event` pattern, and filenames favour lowercase-hyphen. Run `cd electron-app && npx eslint .` and `cd chrome_extension && npm run style`; the server relies on `npm run build` as the type-and-style gate.
 
 ## Testing Guidelines
-No automated suite exists yet, so rely on `npm run build` plus manual checks of the `/history` UI and REST endpoints. When you add tests, colocate `.spec.ts` files next to the code or establish `src/__tests__/` if coverage expands. Stub `DownloadManager` filesystem and child-process calls to keep tests deterministic, and capture regression payloads as lightweight fixtures under `src/utils`.
+Before a PR, execute `cd electron-app && npm run test:coverage`, `cd chrome_extension && npm test`, and `cd server && npm run build`. Colocate new specs beside features (e.g., `__tests__/feature.test.ts`). For server-side additions, provide manual verification notes covering `/history` playback and REST endpoints, and stub filesystem or child-process calls when you add automated tests.
 
 ## Commit & Pull Request Guidelines
-Commits should be concise, present-tense summaries such as `download-manager: surface format state`; bundle related edits and avoid trailing punctuation. Record new environment variables or migrations in the commit body. Pull requests need context, linked issues, and screenshots or logs for UI changes, plus a checklist of commands run (`npm run dev`, `npm run build`).
+Write present-tense, imperative subjects (`download-manager: update cache`). Reference issues with `#id` where relevant, and mention new env vars or migrations in the body. PRs should list affected surfaces, include screenshots or logs for UI changes, enumerate commands run, and call out skipped tests with rationale. Request an Electron maintainer when touching packaging scripts or `resources/` binaries.
 
-## Configuration & Operations Tips
-Configuration flows through `src/config.ts`, which reads environment variables (`DOWNLOAD_DIR`, `DB_PATH`, `YT_DLP_RUNNER`, etc.) and creates required directories. Document any new flag in the README and compose files, and keep Docker defaults functioning. If you alter path handling, update the `isPathInside` guard in `src/index.ts` so downloads stay within the configured sandbox.
+## Security & Configuration Tips
+Never commit secrets; load them through `.env` and `src/config.ts`. After tweaking `resources/yt-*` or WebSocket ports, run `cd electron-app && npm run verify:deps` and align the extension configuration. Keep download paths inside the sandbox—update `isPathInside` if path rules change, and ensure CORS origins match between the extension and server.
