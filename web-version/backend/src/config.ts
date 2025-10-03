@@ -64,9 +64,9 @@ function buildFormat(baseFormat: string, qualityToken: number | null): string {
     return baseFormat.replace(/\{quality\}/gu, String(qualityToken));
   }
 
-  const match = /(\\d{3,4})/u.exec(input);
-  if (!match) return null;
-  return Number.parseInt(match[1], 10);
+  const limit = `[height<=${qualityToken}]`;
+  return `bestvideo${limit}+bestaudio/best${limit}`;
+}
 
 function buildRunner(downloadDir: string): RunnerConfig {
   const runner = (process.env.YT_DLP_RUNNER || 'docker').toLowerCase() as RunnerType;
@@ -127,7 +127,7 @@ export function loadConfig(): ServerConfig {
     downloadDir,
     dbPath,
     format,
-  const checkFormatList = process.env.CHECK_FORMAT_LIST?.toLowerCase() === "true";
+    template,
     maxConcurrent,
     httpPort,
     wsPath,
