@@ -2,9 +2,9 @@
 .idea
 .vscode
 **/.env
-server/node_modules/
-server/*.log
-server/.DS_Store
+web-version/node_modules/
+web-version/*.log
+web-version/.DS_Store
 
 chrome_extension/dist
 chrome_extension/node_modules
@@ -26,6 +26,6 @@ electron-app/release/*
 # dist
 **/dist
 
-server/downloads
+web-version/downloads
 
 chrome_extension/extension.zip
