@@ -64,9 +64,9 @@ function buildFormat(baseFormat: string, qualityToken: number | null): string {
     return baseFormat.replace(/\{quality\}/gu, String(qualityToken));
   }
 
-  const limit = `[height<=${qualityToken}]`;
-  return `bestvideo${limit}+bestaudio/best${limit}`;
-}
+  const match = /(\\d{3,4})/u.exec(input);
+  if (!match) return null;
+  return Number.parseInt(match[1], 10);
 
 function buildRunner(downloadDir: string): RunnerConfig {
   const runner = (process.env.YT_DLP_RUNNER || 'docker').toLowerCase() as RunnerType;
