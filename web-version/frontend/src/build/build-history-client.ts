@@ -11,10 +11,13 @@ function ensureDir(filePath: string): void {
 }
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.resolve(currentDir, '..');
-const projectRoot = path.resolve(distDir, '..');
-const srcEntry = path.resolve(projectRoot, 'src/history-page/client/index.tsx');
-const outFile = path.resolve(distDir, 'history/assets/history-client.js');
+const repoRoot = path.resolve(currentDir, '../../..');
+const frontendDir = path.resolve(repoRoot, 'frontend');
+const frontendSrcDir = path.resolve(frontendDir, 'src');
+const tsconfigPath = path.resolve(frontendDir, 'tsconfig.json');
+const outDir = path.resolve(repoRoot, 'dist/history/assets');
+const srcEntry = path.resolve(frontendSrcDir, 'history-page/client/index.tsx');
+const outFile = path.resolve(outDir, 'history-client.js');
 
 ensureDir(outFile);
 
@@ -26,5 +29,6 @@ buildSync({
     platform: 'browser',
     target: ['es2019'],
     sourcemap: false,
-    minify: true
+    minify: true,
+    tsconfig: tsconfigPath
 });
