@@ -1,5 +1,5 @@
 import type { DownloadRecordRow } from './database.js';
-import type { HistoryPageViewProps } from './history-page/types.js';
+import type { HistoryPageViewProps } from '@shared/history-page';
 
 export interface RenderHistoryPageOptions {
     items: DownloadRecordRow[];
@@ -82,4 +82,4 @@ export function renderHistoryPageToHtml(options: RenderHistoryPageOptions): stri
     ].join('');
 }
 
-export type { HistoryPageViewProps } from './history-page/types.js';
+export type { HistoryPageViewProps } from '@shared/history-page';

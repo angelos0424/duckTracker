@@ -1,6 +1,12 @@
 # DuckTracker Server
 
-This folder hosts a lightweight HTTP + WebSocket service that coordinates YouTube downloads for the DuckTracker extension. The service is designed to run inside Docker so it can be deployed independently from the Electron desktop app.
+This folder hosts a lightweight HTTP + WebSocket service that coordinates YouTube downloads for the DuckTracker extension. The codebase is now split into clear runtime surfaces so the server logic under `backend/` and the history page UI under `frontend/` can evolve independently. The service is designed to run inside Docker so it can be deployed independently from the Electron desktop app.
+
+## Project Structure
+
+- `backend/` – TypeScript sources for the HTTP/WebSocket server and download manager. Compiles to `dist/backend/`.
+- `frontend/` – React-based history page along with build helpers that emit `dist/history/assets/*`.
+- `shared/` – Lightweight type definitions consumed by both surfaces.
 
 ## Features
 
@@ -69,7 +75,11 @@ Responses always include CORS headers so the extension can call the endpoints di
 To run the server without Docker you only need Node.js 20+ and `yt-dlp` available in your `PATH`:
 
 ```bash
-PORT=8080 DOWNLOAD_DIR=./downloads YT_DLP_RUNNER=binary node src/index.js
+PORT=8080 DOWNLOAD_DIR=./downloads YT_DLP_RUNNER=binary npm run dev
 ```
 
-`node --watch src/index.js` provides a rudimentary dev loop.
+After running `npm run build`, start the compiled server with:
+
+```bash
+node dist/backend/index.js
+```

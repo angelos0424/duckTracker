@@ -31,7 +31,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY tsconfig.json ./
-COPY src ./src
+COPY backend ./backend
+COPY frontend ./frontend
+COPY shared ./shared
+COPY frontend/tsconfig.json ./frontend/tsconfig.json
 
 RUN npm run build \
   && npm prune --omit=dev
@@ -42,4 +45,4 @@ ARG PORT=8080
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/backend/index.js"]

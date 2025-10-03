@@ -2,13 +2,13 @@
   "name": "ducktracker",
   "version": "1.0.0",
   "description": "Lightweight download coordination server for DuckTracker",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/backend/index.js",
+  "types": "dist/backend/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "postbuild": "node dist/build/build-history-client.js && node dist/build/copy-history-assets.js",
-    "start": "node dist/index.js",
-    "dev": "ts-node --transpile-only --esm src/index.ts"
+    "build": "tsc --project tsconfig.json",
+    "postbuild": "TS_NODE_PROJECT=frontend/tsconfig.json node --loader ts-node/esm frontend/src/build/build-history-client.ts && TS_NODE_PROJECT=frontend/tsconfig.json node --loader ts-node/esm frontend/src/build/copy-history-assets.ts",
+    "start": "node dist/backend/index.js",
+    "dev": "ts-node --project tsconfig.json --transpile-only --esm backend/src/index.ts"
   },
   "keywords": [
     "youtube",

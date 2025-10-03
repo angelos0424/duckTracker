@@ -24,3 +24,25 @@ export interface HistoryItemBase {
     lastError?: string | null;
     error?: string | null;
 }
+
+export interface HistoryItem extends HistoryItemBase {}
+
+export interface PaginationState {
+    page: number;
+    totalPages: number;
+    pageSize: number;
+    searchTerm?: string;
+}
+
+export interface HistoryPageViewProps {
+    items: HistoryItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+    showingFrom: number;
+    showingTo: number;
+    searchTerm?: string;
+    wsPath: string;
+    checkFormatList: boolean;
+}
