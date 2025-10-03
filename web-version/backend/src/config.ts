@@ -127,7 +127,7 @@ export function loadConfig(): ServerConfig {
     downloadDir,
     dbPath,
     format,
-    template,
+  const checkFormatList = process.env.CHECK_FORMAT_LIST?.toLowerCase() === "true";
     maxConcurrent,
     httpPort,
     wsPath,
