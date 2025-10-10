@@ -219,8 +219,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-function connectWebSocket() {
-  const ws = new WebSocket('ws://localhost:8080');
+const buildWebSocketUrl = async (): Promise<string> => {
+  const apiUrl = await apiService.getApiUrl();
+  try {
+    const parsedUrl = new URL(apiUrl);
+    parsedUrl.protocol = parsedUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    return parsedUrl.toString();
+  } catch (error) {
+    console.error('Invalid apiUrl detected, falling back to ws://localhost:8080', apiUrl, error);
+    return 'ws://localhost:8080';
+  }
+};
+
+async function connectWebSocket() {
+  let ws: WebSocket;
+  try {
+    const socketUrl = await buildWebSocketUrl();
+    ws = new WebSocket(socketUrl);
+  } catch (error) {
+    console.error('Failed to initialize WebSocket connection, retrying...', error);
+    setTimeout(connectWebSocket, 5000);
+    return;
+  }
 
   ws.onopen = () => {
     console.log('WebSocket connected');
@@ -271,4 +291,6 @@ function connectWebSocket() {
   };
 }
 
-connectWebSocket();
+connectWebSocket().catch(error => {
+  console.error('Failed to start WebSocket connection:', error);
+});

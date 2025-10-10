@@ -56,6 +56,11 @@ class ApiService {
     }
     return await response.json();
   }
+
+  async getApiUrl(): Promise<string> {
+    await this.ready;
+    return this.apiUrl;
+  }
 }
 
 export const apiService = new ApiService();
