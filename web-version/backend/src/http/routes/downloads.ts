@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { UrlWithParsedQuery } from 'node:url';
-import { createDownloadHandlers } from '../../handlers/downloads.js';
-import type { ServerConfig } from '../../../config.js';
-import type { DownloadManager } from '../../../download-manager.js';
+import { createDownloadHandlers } from '../handlers/downloads.js';
+import type { ServerConfig } from '../../config.js';
+import type { DownloadManager } from '../../download-manager.js';
 
 interface DownloadRouteDeps {
     config: ServerConfig;

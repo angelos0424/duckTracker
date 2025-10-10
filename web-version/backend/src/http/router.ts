@@ -4,7 +4,7 @@ import type { ServerConfig } from '../config.js';
 import type { DownloadManager } from '../download-manager.js';
 import { jsonResponse, sendOptionsResponse } from './responses.js';
 import { createHistoryRoutes } from './routes/history/index.js';
-import { createDownloadRoutes } from './routes/downloads/index.js';
+import { createDownloadRoutes } from './routes/downloads.js';
 import { createAssetRoutes } from './routes/assets/index.js';
 
 export interface RouterDependencies {
