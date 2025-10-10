@@ -49,7 +49,8 @@ export class Observer {
         if (mutation.type === 'childList') {
           mutation.addedNodes.forEach(node => {
             if (node.nodeType === Node.ELEMENT_NODE) {
-              const tagName = (node as Element).tagName;
+              const element = node as Element;
+              const tagName = element.tagName;
               // yt-lockup-view-model -> 검색 : PlayList
               // ytd-video-renderer -> 검색 : 영상
               // GRID-SHELF-VIEW-MODEL -> 검색 : 숏츠목록
@@ -71,7 +72,7 @@ export class Observer {
               if (!validName.includes(tagName)) {
                 return;
               }
-              this.findElements(node as Element, 'setupObserver'); // 전부 위 태그로 분류가 가능.
+              this.findElements(element, 'setupObserver'); // 전부 위 태그로 분류가 가능.
             }
           });
         }
@@ -200,8 +201,19 @@ export class Observer {
     }
     // 4. 숏츠 단일 페이지
     else if (url.includes('/shorts/')) {
-      console.log('숏츠 단일 페이지')
-      if (node.tagName !== 'YTD-REEL-VIDEO-RENDERER') return;
+      console.log('숏츠 단일 페이지', node.tagName)
+
+      const reelNode = node.tagName === 'YTD-REEL-VIDEO-RENDERER'
+        ? node
+        : node.closest('ytd-reel-video-renderer#reel-video-renderer');
+
+      if (!reelNode) {
+        if (origin === 'scanForExistingElements') {
+          node.querySelectorAll('ytd-reel-video-renderer#reel-video-renderer')
+            .forEach((shortsNode) => this.findElements(shortsNode as Element, origin));
+        }
+        return;
+      }
 
       const selector = 'ytd-player div.ytp-chrome-top > div.ytp-title > div.ytp-title-text > a';
 
@@ -224,7 +236,7 @@ export class Observer {
       };
 
       // Try to find immediately
-      if (findAndProcessShortsTarget(node)) {
+      if (findAndProcessShortsTarget(reelNode)) {
         return;
       }
 
@@ -232,7 +244,7 @@ export class Observer {
       const tempObserver = new MutationObserver((mutations, observer) => {
         for (const mutation of mutations) {
           if (mutation.type === 'childList' || mutation.type === 'attributes') {
-            if (findAndProcessShortsTarget(node)) {
+            if (findAndProcessShortsTarget(reelNode)) {
               observer.disconnect();
               return;
             }
@@ -240,22 +252,28 @@ export class Observer {
         }
       });
 
-      tempObserver.observe(node, {
+      tempObserver.observe(reelNode, {
         childList: true,
         subtree: true,
       });
 
       // Set a timeout to disconnect the observer if the element doesn't appear
       setTimeout(() => {
-        if (tempObserver) {
-          tempObserver.disconnect();
-        }
+        tempObserver.disconnect();
       }, 2000); // 5 seconds timeout
     } else if (url.startsWith('https://www.youtube.com/@')) {
       // 채널 들어옴.
       console.log('채널 페이지', url);
-      if (url.split('/')[4] === 'playlists') {
-        if (node.tagName !== 'YT-LOCKUP-VIEW-MODEL') return;
+      const channelPath = url.split('/')[4]?.split('?')[0] ?? '';
+
+      if (channelPath === 'playlists') {
+        if (node.tagName !== 'YT-LOCKUP-VIEW-MODEL') {
+          if (origin === 'scanForExistingElements') {
+            node.querySelectorAll('yt-lockup-view-model')
+              .forEach(el => this.findElements(el as Element, origin));
+          }
+          return;
+        }
         node.querySelectorAll('yt-lockup-view-model > div > a')
           .forEach(el => {
             if ((el as HTMLElement).dataset.trackerProcessed) return;
@@ -264,9 +282,15 @@ export class Observer {
             this.onElementFound(el, els);
             (el as HTMLElement).dataset.trackerProcessed = 'true';
           })
-      } else if (url.split('/')[4] === 'videos') {
+      } else if (channelPath === 'videos') {
         console.log('채널 -> 비디오', node)
-        if (node.tagName !== 'YTD-RICH-ITEM-RENDERER') return;
+        if (node.tagName !== 'YTD-RICH-ITEM-RENDERER') {
+          if (origin === 'scanForExistingElements') {
+            node.querySelectorAll('ytd-rich-item-renderer')
+              .forEach(el => this.findElements(el as Element, origin));
+          }
+          return;
+        }
 
         const selector = 'ytd-thumbnail > a#thumbnail';
 
@@ -328,8 +352,14 @@ export class Observer {
             console.log(els);
             (el as HTMLElement).dataset.trackerProcessed = 'true';
           })
-      } else if (url.split('/')[4] === 'shorts') {
-        if (node.tagName !== 'YTD-RICH-ITEM-RENDERER') return;
+      } else if (channelPath === 'shorts') {
+        if (node.tagName !== 'YTD-RICH-ITEM-RENDERER') {
+          if (origin === 'scanForExistingElements') {
+            node.querySelectorAll('ytd-rich-item-renderer')
+              .forEach(el => this.findElements(el as Element, origin));
+          }
+          return;
+        }
 
         node.querySelectorAll('ytm-shorts-lockup-view-model-v2 > ytm-shorts-lockup-view-model > a').forEach(el => {
           if ((el as HTMLElement).dataset.trackerProcessed) return;

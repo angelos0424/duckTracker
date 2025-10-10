@@ -11,8 +11,8 @@ export class ToolbarService {
     const toolbars = document.querySelectorAll(`.${this.TOOLBAR_CLASS}`);
     toolbars.forEach(toolbar => toolbar.remove());
 
-    // 모든 dataset.trackerProcessed를 가진 요소를 찾아서 초기화
-    document.querySelectorAll('[data-tracker-processed="true"]').forEach(el => {
+    // 모든 data-tracker-processed 값을 초기화해서 재탐색이 가능하도록 함
+    document.querySelectorAll('[data-tracker-processed]').forEach(el => {
       delete (el as HTMLElement).dataset.trackerProcessed;
     });
 
