@@ -176,10 +176,13 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
                 }
             }
 
+            const formatId = typeof body?.formatId === 'string' ? body.formatId : undefined;
+
             const scheduleResult = await downloadManager.schedule({
                 url: targetUrl,
                 urlId: derivedId,
                 title: typeof body.title === 'string' ? body.title : undefined,
+                formatId,
                 skipFormatCheck
             });
 

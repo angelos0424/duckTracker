@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
-import { HistoryTable } from '../../components/HistoryTable.js';
+import {
+    HistoryTable,
+    type HistoryTableSortColumn,
+    type HistoryTableSortDirection,
+    type HistoryTableSortState
+} from '../../components/HistoryTable.js';
 import { Pagination } from '../../components/Pagination.js';
 import { SearchForm } from '../../components/SearchForm.js';
+import { StatusFilterControls, type StatusFilterOption } from '../../components/StatusFilterControls.js';
 import type { HistoryPageBootstrap } from '../types.js';
 import { AddDownloadDialog } from './AddDownloadDialog.js';
 import { HistoryCardList } from '../../components/HistoryCardList.js';
@@ -11,6 +17,7 @@ import { useDialogState } from '../hooks/useDialogState.js';
 import { useHistoryWebSocket } from '../hooks/useHistoryWebSocket.js';
 import type { DownloadRequestResponse, HistoryItem } from '../types.js';
 import { normaliseFormatOptions, validateUrl, deriveUrlId } from '../utils/format.js';
+import { getStatusLabel } from '../../utils/status.js';
 import {
     deleteHistory as deleteHistoryApi,
     fetchDownloadFile,
@@ -21,6 +28,106 @@ import {
 } from '../services/historyApi.js';
 
 type HistoryAppProps = HistoryPageBootstrap;
+
+const STATUS_DISPLAY_ORDER: readonly string[] = [
+    'downloading',
+    'queued',
+    'completed',
+    'format-select',
+    'stop',
+    'error',
+    'unknown'
+];
+
+function compareStringValues(
+    left: string | undefined | null,
+    right: string | undefined | null,
+    direction: HistoryTableSortDirection,
+    locale: string
+): number {
+    const leftValue = (left ?? '').trim();
+    const rightValue = (right ?? '').trim();
+    const hasLeft = leftValue.length > 0;
+    const hasRight = rightValue.length > 0;
+
+    if (!hasLeft && !hasRight) {
+        return 0;
+    }
+    if (!hasLeft) {
+        return 1;
+    }
+    if (!hasRight) {
+        return -1;
+    }
+
+    return direction === 'asc'
+        ? leftValue.localeCompare(rightValue, locale)
+        : rightValue.localeCompare(leftValue, locale);
+}
+
+function compareNumberValues(
+    left: number | null | undefined,
+    right: number | null | undefined,
+    direction: HistoryTableSortDirection
+): number {
+    const hasLeft = typeof left === 'number' && Number.isFinite(left);
+    const hasRight = typeof right === 'number' && Number.isFinite(right);
+
+    if (!hasLeft && !hasRight) {
+        return 0;
+    }
+    if (!hasLeft) {
+        return 1;
+    }
+    if (!hasRight) {
+        return -1;
+    }
+
+    if (left === right) {
+        return 0;
+    }
+
+    return direction === 'asc' ? (left as number) - (right as number) : (right as number) - (left as number);
+}
+
+function toTimestamp(value: string | null | undefined): number | null {
+    if (!value) {
+        return null;
+    }
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function compareHistoryItems(
+    left: HistoryItem,
+    right: HistoryItem,
+    sortState: HistoryTableSortState
+): number {
+    switch (sortState.column) {
+        case 'title':
+            return compareStringValues(left.title, right.title, sortState.direction, 'ko');
+        case 'status':
+            return compareStringValues(
+                getStatusLabel(left.status),
+                getStatusLabel(right.status),
+                sortState.direction,
+                'ko'
+            );
+        case 'percent': {
+            const leftPercent = typeof left.percent === 'number' ? left.percent : Number(left.percent);
+            const rightPercent = typeof right.percent === 'number' ? right.percent : Number(right.percent);
+            return compareNumberValues(leftPercent, rightPercent, sortState.direction);
+        }
+        case 'fileSizeBytes':
+            return compareNumberValues(left.fileSizeBytes, right.fileSizeBytes, sortState.direction);
+        case 'createdAt':
+            return compareNumberValues(toTimestamp(left.createdAt), toTimestamp(right.createdAt), sortState.direction);
+        case 'updatedAt':
+            return compareNumberValues(toTimestamp(left.updatedAt), toTimestamp(right.updatedAt), sortState.direction);
+        default:
+            return 0;
+    }
+}
 
 function cloneItems(items: HistoryItem[]): HistoryItem[] {
     return items.map((item) => ({ ...item }));
@@ -45,9 +152,121 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const deleteBusy = useBusyMap();
     const formatBusy = useBusyMap();
     const [playback, setPlayback] = useState<PlaybackSession | null>(null);
+    const [statusFilter, setStatusFilter] = useState<string[]>([]);
+    const [sortState, setSortState] = useState<HistoryTableSortState | null>(null);
 
     const dialog = useDialogState(props.checkFormatList);
     const dialogState = dialog.state;
+
+    const statusCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const item of items) {
+            const key = item.status ?? 'unknown';
+            counts[key] = (counts[key] ?? 0) + 1;
+        }
+        return counts;
+    }, [items]);
+
+    const statusOptions = useMemo<StatusFilterOption[]>(() => {
+        const remaining = new Set(Object.keys(statusCounts));
+        const ordered: StatusFilterOption[] = STATUS_DISPLAY_ORDER.map((statusKey) => {
+            const count = statusCounts[statusKey] ?? 0;
+            const option: StatusFilterOption = {
+                value: statusKey,
+                label: getStatusLabel(statusKey),
+                count
+            };
+            remaining.delete(statusKey);
+            return option;
+        });
+
+        const dynamicOptions: StatusFilterOption[] = Array.from(remaining)
+            .sort((a, b) => getStatusLabel(a).localeCompare(getStatusLabel(b), 'ko'))
+            .map((statusKey) => ({
+                value: statusKey,
+                label: getStatusLabel(statusKey),
+                count: statusCounts[statusKey] ?? 0
+            }));
+
+        return [...ordered, ...dynamicOptions].filter((option, index, array) => {
+            if (option.value === 'unknown') {
+                return option.count > 0;
+            }
+            return array.findIndex((entry) => entry.value === option.value) === index;
+        });
+    }, [statusCounts]);
+
+    const selectedStatusLabels = useMemo(() => {
+        if (statusFilter.length === 0) {
+            return '';
+        }
+        const labelMap = new Map(statusOptions.map((option) => [option.value, option.label] as const));
+        return statusFilter
+            .map((value) => labelMap.get(value) ?? getStatusLabel(value))
+            .join(', ');
+    }, [statusFilter, statusOptions]);
+
+    useEffect(() => {
+        setStatusFilter((previous) => {
+            if (previous.length === 0) {
+                return previous;
+            }
+            const available = new Set(statusOptions.map((option) => option.value));
+            const next = previous.filter((value) => available.has(value));
+            return next.length === previous.length ? previous : next;
+        });
+    }, [statusOptions]);
+
+    const visibleItems = useMemo(() => {
+        const filterSet = new Set(statusFilter);
+        const shouldFilter = filterSet.size > 0;
+        const filtered = shouldFilter
+            ? items.filter((item) => {
+                  const statusValue = item.status ?? 'unknown';
+                  return filterSet.has(statusValue);
+              })
+            : items;
+
+        if (!sortState) {
+            return filtered;
+        }
+
+        return filtered
+            .map((item, index) => ({ item, index }))
+            .sort((left, right) => {
+                const comparison = compareHistoryItems(left.item, right.item, sortState);
+                if (comparison !== 0) {
+                    return comparison;
+                }
+                return left.index - right.index;
+            })
+            .map((entry) => entry.item);
+    }, [items, sortState, statusFilter]);
+
+    const handleStatusToggle = useCallback((statusValue: string) => {
+        setStatusFilter((previous) => {
+            if (previous.includes(statusValue)) {
+                return previous.filter((entry) => entry !== statusValue);
+            }
+            return [...previous, statusValue];
+        });
+    }, []);
+
+    const handleStatusClear = useCallback(() => {
+        setStatusFilter([]);
+    }, []);
+
+    const handleSortRequest = useCallback(
+        (column: HistoryTableSortColumn, direction: HistoryTableSortDirection) => {
+            setSortState((previous) => {
+                if (previous && previous.column === column && previous.direction === direction) {
+                    return null;
+                }
+                return { column, direction };
+            });
+        },
+        []
+    );
 
     const updateItemState = useCallback((state: HistoryItem | null) => {
 
@@ -576,7 +795,15 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                     </div>
                 </header>
                 <div className="history-toolbar">
-                    <SearchForm searchTerm={summary.searchTerm} />
+                    <div className="history-toolbar__filters">
+                        <SearchForm searchTerm={summary.searchTerm} />
+                        <StatusFilterControls
+                            options={statusOptions}
+                            selected={statusFilter}
+                            onStatusToggle={handleStatusToggle}
+                            onClear={handleStatusClear}
+                        />
+                    </div>
                     <div className="history-toolbar__actions">
                         <button
                             type="button"
@@ -600,7 +827,7 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                     <div className="history-table-wrapper">
                         <div className="history-table-scroll">
                             <HistoryTable
-                                items={items}
+                                items={visibleItems}
                                 enableFormatSelection={props.checkFormatList}
                                 handlers={{
                                     onDownload: handleDownload,
@@ -622,12 +849,14 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                                         ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
                                         : toBooleanMap(formatBusy.state)
                                 }}
+                                sortState={sortState}
+                                onRequestSort={handleSortRequest}
                             />
                         </div>
                     </div>
                     <div className="history-card-region">
                         <HistoryCardList
-                            items={items}
+                            items={visibleItems}
                             enableFormatSelection={props.checkFormatList}
                             handlers={{
                                 onDownload: handleDownload,
@@ -654,7 +883,17 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                 </div>
                 <div className="history-summary">
                     <span className="history-summary__info">
-                        총 {summary.total.toLocaleString()}건 중 {summary.showingFrom.toLocaleString()}-{summary.showingTo.toLocaleString()} 표시
+                        <span>
+                            총 {summary.total.toLocaleString()}건 중 {summary.showingFrom.toLocaleString()}-{summary.showingTo.toLocaleString()} 표시
+                        </span>
+                        {statusFilter.length > 0 ? (
+                            <span className="history-summary__filtered-count">
+                                필터 결과 {visibleItems.length.toLocaleString()}건
+                                {selectedStatusLabels ? (
+                                    <span className="history-summary__filtered-meta">선택된 상태: {selectedStatusLabels}</span>
+                                ) : null}
+                            </span>
+                        ) : null}
                     </span>
                     <Pagination
                         page={summary.page}

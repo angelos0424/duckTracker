@@ -1,6 +1,6 @@
-export function getStatusLabel(status: string | undefined): string {
+export function getStatusLabel(status: string | null | undefined): string {
     if (!status) {
-        return 'unknown';
+        return '알 수 없음';
     }
 
     switch (status) {
@@ -16,8 +16,9 @@ export function getStatusLabel(status: string | undefined): string {
             return '포맷 선택 필요';
         case 'stop':
             return '중지됨';
+        case 'unknown':
+            return '알 수 없음';
         default:
             return status;
     }
 }
-
