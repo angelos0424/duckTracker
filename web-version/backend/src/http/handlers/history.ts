@@ -166,7 +166,7 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
             const existing = downloadManager.getState(derivedId);
             if (existing) {
                 const requiresFormatSelection = existing.status === 'format-select';
-                if (existing.status === 'queued' || existing.status === 'downloading' || requiresFormatSelection) {
+                if (existing.status === 'queued' || existing.status === 'downloading') {
                     jsonResponse(res, 200, {
                         ...existing,
                         queued: existing.status === 'queued',
@@ -177,7 +177,6 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
             }
 
             const formatId = typeof body?.formatId === 'string' ? body.formatId : undefined;
-
             const scheduleResult = await downloadManager.schedule({
                 url: targetUrl,
                 urlId: derivedId,

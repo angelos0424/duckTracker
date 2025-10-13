@@ -13,7 +13,7 @@ export async function requestDownload(payload: RequestDownloadPayload & { urlId?
     const response = await fetch('/history/request-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, enforceFormatCheck: true })
+        body: JSON.stringify({ ...payload, enforceFormatCheck: typeof payload?.formatId !== 'string' })
     });
     const data = (await parseJson<DownloadRequestResponse>(response)) ?? {};
     if (!response.ok) {
