@@ -6,6 +6,7 @@ export interface RenderHistoryPageOptions {
     total: number;
     page: number;
     pageSize: number;
+    selectedStatuses: string[];
     statusCounts: Record<string, number>;
     searchTerm?: string;
     wsPath?: string;
@@ -25,6 +26,7 @@ function buildHistoryPageProps({
     page,
     pageSize,
     searchTerm,
+    selectedStatuses,
     wsPath,
     checkFormatList,
     statusCounts
@@ -45,6 +47,7 @@ function buildHistoryPageProps({
         searchTerm,
         wsPath: normaliseWsPath(wsPath),
         checkFormatList,
+        selectedStatuses,
         statusCounts
     };
 }

@@ -32,6 +32,7 @@ export interface PaginationState {
     totalPages: number;
     pageSize: number;
     searchTerm?: string;
+    selectedStatuses?: string[];
 }
 
 export interface HistoryPageViewProps {
@@ -45,5 +46,6 @@ export interface HistoryPageViewProps {
     searchTerm?: string;
     wsPath: string;
     checkFormatList: boolean;
+    selectedStatuses?: string[];
     statusCounts: Record<string, number>;
 }

@@ -51,6 +51,7 @@ export interface SearchDownloadsInput {
     searchTerm?: string;
     page?: number;
     pageSize?: number;
+    statuses?: string[];
 }
 
 export interface SearchDownloadsResult {
@@ -372,7 +373,12 @@ export function deleteDownloads(urlIds: string[]): Array<{ urlId: string; filePa
     return transaction(uniqueIds) as Array<{ urlId: string; filePath: string | null }>;
 }
 
-export function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }: SearchDownloadsInput): SearchDownloadsResult {
+export function searchDownloads({
+    searchTerm = '',
+    page = 1,
+    pageSize = 20,
+    statuses = []
+}: SearchDownloadsInput): SearchDownloadsResult {
     const db = assertDb();
 
     const safePage = Number.isInteger(page) && page && page > 0 ? page : 1;
@@ -385,6 +391,24 @@ export function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }: Se
     if (searchTerm && typeof searchTerm === 'string') {
         params.search = `%${searchTerm.trim()}%`;
         conditions.push('(url_id LIKE @search OR title LIKE @search)');
+    }
+
+    const statusList = Array.isArray(statuses)
+        ? Array.from(
+              new Set(
+                  statuses
+                      .map((status) => (typeof status === 'string' ? status.trim() : ''))
+                      .filter((status) => status.length > 0)
+              )
+          )
+        : [];
+
+    if (statusList.length > 0) {
+        const placeholders = statusList.map((_status, index) => `@status${index}`);
+        conditions.push(`status IN (${placeholders.join(',')})`);
+        statusList.forEach((status, index) => {
+            params[`status${index}`] = status;
+        });
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

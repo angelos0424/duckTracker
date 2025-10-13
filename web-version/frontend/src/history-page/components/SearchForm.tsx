@@ -2,9 +2,11 @@ import React from 'react';
 
 interface SearchFormProps {
     searchTerm?: string;
+    pageSize?: number;
+    selectedStatuses?: readonly string[];
 }
 
-export const SearchForm: React.FC<SearchFormProps> = ({ searchTerm }) => (
+export const SearchForm: React.FC<SearchFormProps> = ({ searchTerm, pageSize, selectedStatuses }) => (
     <form method="GET" action="/history" className="search-form">
         <label htmlFor="history-search" className="visually-hidden">
             URL ID 또는 제목 검색
@@ -30,5 +32,13 @@ export const SearchForm: React.FC<SearchFormProps> = ({ searchTerm }) => (
         <button type="submit" className="search-form__submit">
             검색
         </button>
+        {Number.isFinite(pageSize) && pageSize ? (
+            <input type="hidden" name="pageSize" value={String(pageSize)} />
+        ) : null}
+        {selectedStatuses && selectedStatuses.length > 0
+            ? Array.from(new Set(selectedStatuses)).map((status) => (
+                  <input key={status} type="hidden" name="status" value={status} />
+              ))
+            : null}
     </form>
 );

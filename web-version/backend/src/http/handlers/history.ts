@@ -75,6 +75,19 @@ function parseInteger(value: unknown, fallback: number): number {
     return fallback;
 }
 
+function parseStatusFilter(value: unknown): string[] {
+    if (!value) {
+        return [];
+    }
+
+    const values = Array.isArray(value) ? value : [value];
+    const normalised = values
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter((entry): entry is string => entry.length > 0);
+
+    return Array.from(new Set(normalised));
+}
+
 type HistoryQuery = Record<string, string | string[] | undefined>;
 
 export function createHistoryHandlers({ config, downloadManager }: HistoryHandlerDeps) {
@@ -85,6 +98,7 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
         let page = parseInteger(query.page, 1);
         let pageSize = parseInteger(query.pageSize, 20);
         pageSize = Math.min(pageSize, 100);
+        const statusFilter = parseStatusFilter(query.status);
 
         type SearchDownloadItem = SearchDownloadsResult['items'][number];
 
@@ -118,12 +132,12 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
                 }
             });
 
-        let result = searchDownloads({ searchTerm, page, pageSize });
+        let result = searchDownloads({ searchTerm, page, pageSize, statuses: statusFilter });
         const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
         if (page > totalPages && result.total > 0) {
             page = totalPages;
-            result = searchDownloads({ searchTerm, page, pageSize });
+            result = searchDownloads({ searchTerm, page, pageSize, statuses: statusFilter });
         }
 
         const itemsWithSize = attachFileSizes(result.items);
@@ -133,6 +147,7 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
             total: result.total,
             page,
             pageSize: result.pageSize,
+            selectedStatuses: statusFilter,
             statusCounts: result.statusCounts,
             searchTerm,
             wsPath: config.wsPath,

@@ -4,15 +4,26 @@ import { buildPageLink } from '../utils/links.js';
 
 const PAGE_WINDOW_SIZE = 10;
 
-export const Pagination: React.FC<PaginationState> = ({ page, totalPages, pageSize, searchTerm }) => {
+export const Pagination: React.FC<PaginationState> = ({
+    page,
+    totalPages,
+    pageSize,
+    searchTerm,
+    selectedStatuses
+}) => {
     const baseParams = new URLSearchParams();
     if (searchTerm) {
         baseParams.set('search', searchTerm);
     }
     baseParams.set('pageSize', String(pageSize));
+    if (selectedStatuses && selectedStatuses.length > 0) {
+        Array.from(new Set(selectedStatuses)).forEach((status) => {
+            baseParams.append('status', status);
+        });
+    }
 
-    const prevLink = page > 10 ? buildPageLink(baseParams, { page: page - 10 }) : null;
-    const nextLink = page < totalPages -10 ? buildPageLink(baseParams, { page: page + 10 }) : null;
+    const prevLink = page > 1 ? buildPageLink(baseParams, { page: page - 1 }) : null;
+    const nextLink = page < totalPages ? buildPageLink(baseParams, { page: page + 1 }) : null;
 
     const startPage = Math.floor((page - 1) / PAGE_WINDOW_SIZE) * PAGE_WINDOW_SIZE + 1;
     const endPage = Math.min(startPage + PAGE_WINDOW_SIZE - 1, totalPages);

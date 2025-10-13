@@ -152,7 +152,7 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const deleteBusy = useBusyMap();
     const formatBusy = useBusyMap();
     const [playback, setPlayback] = useState<PlaybackSession | null>(null);
-    const [statusFilter, setStatusFilter] = useState<string[]>([]);
+    const [statusFilter, setStatusFilter] = useState<string[]>(() => [...(props.selectedStatuses ?? [])]);
     const [sortState, setSortState] = useState<HistoryTableSortState | null>(null);
 
     const dialog = useDialogState(props.checkFormatList);
@@ -218,6 +218,10 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
     }, [statusFilter, statusOptions]);
 
     useEffect(() => {
+        setStatusFilter([...(props.selectedStatuses ?? [])]);
+    }, [props.selectedStatuses]);
+
+    useEffect(() => {
         setStatusFilter((previous) => {
             if (previous.length === 0) {
                 return previous;
@@ -254,14 +258,53 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
             .map((entry) => entry.item);
     }, [items, sortState, statusFilter]);
 
-    const handleStatusToggle = useCallback((statusValue: string) => {
-        setStatusFilter((previous) => {
-            if (previous.includes(statusValue)) {
-                return previous.filter((entry) => entry !== statusValue);
+    const applyStatusFilters = useCallback(
+        (nextStatuses: string[]) => {
+            const unique = Array.from(
+                new Set(
+                    nextStatuses
+                        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+                        .filter((entry) => entry.length > 0)
+                )
+            );
+            const params = new URLSearchParams();
+            if (typeof props.searchTerm === 'string' && props.searchTerm.trim().length > 0) {
+                params.set('search', props.searchTerm.trim());
             }
-            return [...previous, statusValue];
-        });
-    }, []);
+            if (props.pageSize) {
+                params.set('pageSize', String(props.pageSize));
+            }
+            unique.forEach((status) => {
+                params.append('status', status);
+            });
+            const queryString = params.toString();
+            const target = queryString ? `?${queryString}` : window.location.pathname;
+            window.location.assign(target);
+        },
+        [props.pageSize, props.searchTerm]
+    );
+
+    const handleStatusToggle = useCallback(
+        (statusValue: string) => {
+            setStatusFilter((previous) => {
+                const nextSet = new Set(previous);
+                if (nextSet.has(statusValue)) {
+                    nextSet.delete(statusValue);
+                } else {
+                    nextSet.add(statusValue);
+                }
+                const next = Array.from(nextSet);
+                applyStatusFilters(next);
+                return next;
+            });
+        },
+        [applyStatusFilters]
+    );
+
+    const handleStatusClear = useCallback(() => {
+        setStatusFilter([]);
+        applyStatusFilters([]);
+    }, [applyStatusFilters]);
 
     const handleSortRequest = useCallback(
         (column: HistoryTableSortColumn, direction: HistoryTableSortDirection) => {
@@ -802,11 +845,16 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                 </header>
                 <div className="history-toolbar">
                     <div className="history-toolbar__filters">
-                        <SearchForm searchTerm={summary.searchTerm} />
+                        <SearchForm
+                            searchTerm={summary.searchTerm}
+                            pageSize={summary.pageSize}
+                            selectedStatuses={statusFilter}
+                        />
                         <StatusFilterControls
                             options={statusOptions}
                             selected={statusFilter}
                             onStatusToggle={handleStatusToggle}
+                            onClear={handleStatusClear}
                         />
                     </div>
                     <div className="history-toolbar__actions">
@@ -907,6 +955,7 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                         totalPages={summary.totalPages}
                         pageSize={summary.pageSize}
                         searchTerm={summary.searchTerm}
+                        selectedStatuses={statusFilter}
                     />
                 </div>
             </div>

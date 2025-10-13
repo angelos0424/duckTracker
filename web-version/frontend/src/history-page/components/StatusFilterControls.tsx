@@ -10,18 +10,21 @@ interface StatusFilterControlsProps {
     options: StatusFilterOption[];
     selected: readonly string[];
     onStatusToggle: (value: string) => void;
+    onClear: () => void;
 }
 
 export const StatusFilterControls: React.FC<StatusFilterControlsProps> = ({
     options,
     selected,
     onStatusToggle,
+    onClear
 }) => {
     const hasSelection = selected.length > 0;
 
     return (
         <div className="status-controls" role="region" aria-label="상태 필터">
             <div className="status-controls__filters" role="group" aria-label="상태 필터">
+                <span className="status-controls__section-label">상태</span>
                 <div className="status-controls__chip-row">
                     {options.map((option) => {
                         const isActive = selected.includes(option.value);
@@ -43,6 +46,14 @@ export const StatusFilterControls: React.FC<StatusFilterControlsProps> = ({
                         );
                     })}
                 </div>
+                <button
+                    type="button"
+                    className="status-controls__clear"
+                    onClick={onClear}
+                    disabled={!hasSelection}
+                >
+                    필터 초기화
+                </button>
             </div>
         </div>
     );
