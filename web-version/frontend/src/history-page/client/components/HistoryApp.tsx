@@ -263,10 +263,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
         });
     }, []);
 
-    const handleStatusClear = useCallback(() => {
-        setStatusFilter([]);
-    }, []);
-
     const handleSortRequest = useCallback(
         (column: HistoryTableSortColumn, direction: HistoryTableSortDirection) => {
             setSortState((previous) => {
@@ -802,7 +798,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                 <header className="history-shell__header">
                     <div>
                         <h1 className="history-shell__title">DuckTracker</h1>
-                        <p className="history-shell__subtitle">이걸 내가 받았나..?하며 또 받지 마세요!</p>
                     </div>
                 </header>
                 <div className="history-toolbar">
@@ -812,7 +807,6 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                             options={statusOptions}
                             selected={statusFilter}
                             onStatusToggle={handleStatusToggle}
-                            onClear={handleStatusClear}
                         />
                     </div>
                     <div className="history-toolbar__actions">
@@ -835,9 +829,39 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                     </div>
                 </div>
                 <div className="history-content">
-                    <div className="history-table-wrapper">
-                        <div className="history-table-scroll">
-                            <HistoryTable
+                    <div className="history-content__scroll">
+                        <div className="history-table-wrapper">
+                            <div className="history-table-scroll">
+                                <HistoryTable
+                                    items={visibleItems}
+                                    enableFormatSelection={props.checkFormatList}
+                                    handlers={{
+                                        onDownload: handleDownload,
+                                        onStop: handleStop,
+                                        onResume: handleResume,
+                                        onRemoveFile: handleRemoveFile,
+                                        onDelete: handleDelete,
+                                        onSelectFormat: handleFormatSelectionRequest,
+                                        onOpenBrowser: handleOpenBrowser,
+                                        onPlay: handlePlay
+                                    }}
+                                    pending={{
+                                        download: toBooleanMap(downloadBusy.state),
+                                        stop: toBooleanMap(stopBusy.state),
+                                        resume: toBooleanMap(resumeBusy.state),
+                                        remove: toBooleanMap(removeBusy.state),
+                                        delete: toBooleanMap(deleteBusy.state),
+                                        format: dialogState.mode === 'format' && dialogState.formatUrlId
+                                            ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
+                                            : toBooleanMap(formatBusy.state)
+                                    }}
+                                    sortState={sortState}
+                                    onRequestSort={handleSortRequest}
+                                />
+                            </div>
+                        </div>
+                        <div className="history-card-region">
+                            <HistoryCardList
                                 items={visibleItems}
                                 enableFormatSelection={props.checkFormatList}
                                 handlers={{
@@ -860,36 +884,8 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                                         ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
                                         : toBooleanMap(formatBusy.state)
                                 }}
-                                sortState={sortState}
-                                onRequestSort={handleSortRequest}
                             />
                         </div>
-                    </div>
-                    <div className="history-card-region">
-                        <HistoryCardList
-                            items={visibleItems}
-                            enableFormatSelection={props.checkFormatList}
-                            handlers={{
-                                onDownload: handleDownload,
-                                onStop: handleStop,
-                                onResume: handleResume,
-                                onRemoveFile: handleRemoveFile,
-                                onDelete: handleDelete,
-                                onSelectFormat: handleFormatSelectionRequest,
-                                onOpenBrowser: handleOpenBrowser,
-                                onPlay: handlePlay
-                            }}
-                            pending={{
-                                download: toBooleanMap(downloadBusy.state),
-                                stop: toBooleanMap(stopBusy.state),
-                                resume: toBooleanMap(resumeBusy.state),
-                                remove: toBooleanMap(removeBusy.state),
-                                delete: toBooleanMap(deleteBusy.state),
-                                format: dialogState.mode === 'format' && dialogState.formatUrlId
-                                    ? { [dialogState.formatUrlId]: dialogState.isSubmitting }
-                                    : toBooleanMap(formatBusy.state)
-                            }}
-                        />
                     </div>
                 </div>
                 <div className="history-summary">

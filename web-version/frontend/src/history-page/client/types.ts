@@ -14,6 +14,7 @@ export interface RequestDownloadPayload {
 
 export type HistoryPageBootstrap = Omit<HistoryPageViewProps, 'items'> & {
     items: HistoryItem[];
+    statusCounts: Record<string, number>;
 };
 
 export interface WebSocketMessage {

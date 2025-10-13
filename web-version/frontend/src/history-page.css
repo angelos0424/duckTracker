@@ -46,13 +46,21 @@ input {
     padding: 32px 16px 48px;
     display: flex;
     flex-direction: column;
+    height: 100vh;
     min-height: 100vh;
+    overflow: hidden;
 }
 
 @media (min-width: 768px) {
     .history-shell {
-        padding: 48px 24px 64px;
+        padding: 0 5px;
     }
+}
+
+.history-shell__header,
+.history-toolbar,
+.history-summary {
+    flex-shrink: 0;
 }
 
 .history-content {
@@ -61,13 +69,33 @@ input {
     flex-direction: column;
     gap: 24px;
     min-height: 0;
+    overflow: hidden;
+}
+
+.history-content__scroll {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.history-content__scroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.history-content__scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.5);
+    border-radius: 999px;
 }
 
 .history-shell__header {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 4px;
 }
 
 @media (min-width: 768px) {
@@ -142,7 +170,7 @@ input {
     background: rgba(99, 102, 241, 0.08);
     border: 1px solid rgba(99, 102, 241, 0.12);
     border-radius: 16px;
-    padding: 16px;
+    padding: 4px 6px;
     margin-bottom: 24px;
 }
 
@@ -154,11 +182,6 @@ input {
 }
 
 @media (min-width: 768px) {
-    .history-toolbar {
-        flex-direction: row;
-        align-items: center;
-    }
-
     .history-toolbar__filters {
         flex-direction: column;
     }
@@ -171,10 +194,8 @@ input {
     justify-content: flex-end;
 }
 
-@media (min-width: 768px) {
-    .history-toolbar__actions {
-        min-width: 260px;
-    }
+.history-toolbar__actions > .button {
+    padding: 14px 18px;
 }
 
 .search-form {
@@ -188,7 +209,7 @@ input {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 12px;
+    padding: 8px 12px;
     border-radius: 12px;
     border: 1px solid rgba(99, 102, 241, 0.16);
     background: rgba(255, 255, 255, 0.8);
@@ -199,6 +220,45 @@ input {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
+    }
+}
+
+.history-toolbar__filters > * {
+    width: 100%;
+}
+
+@media (min-width: 1024px) {
+    .history-toolbar {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        gap: 20px;
+    }
+
+    .history-toolbar__filters {
+        flex-direction: row;
+        align-items: center;
+        gap: 16px;
+        flex: 1;
+    }
+
+    .history-toolbar__filters > * {
+        width: auto;
+        flex-shrink: 0;
+    }
+
+    .search-form {
+        width: auto;
+    }
+
+    .search-form__field {
+        min-width: 320px;
+    }
+
+    .history-toolbar__actions {
+        justify-content: flex-end;
+        flex-shrink: 0;
     }
 }
 
@@ -323,8 +383,8 @@ input {
 
 .search-form__input {
     width: 100%;
-    padding: 10px 14px 10px 44px;
-    border-radius: 10px;
+    padding: 14px 14px 14px 44px;
+    border-radius: 12px;
     border: 1px solid #cbd5f5;
     background: #fff;
     font-size: 0.95rem;
@@ -391,7 +451,7 @@ input {
     font-size: 0.9rem;
     font-weight: 600;
     color: #475569;
-    padding: 16px 20px;
+    padding: 5px 20px;
     border-bottom: 1px solid #e2e8f0;
     min-width: 140px;
 }
@@ -453,7 +513,7 @@ input {
 }
 
 .history-table td {
-    padding: 12px 18px;
+    padding: 6px 8px;
     border-bottom: 1px solid #edf2f7;
     font-size: 0.95rem;
     color: #0f172a;
@@ -672,7 +732,6 @@ input {
 
 .history-card-region .history-cards {
     flex: 1;
-    overflow-y: auto;
     margin-bottom: 0;
     padding-right: 4px;
     padding-bottom: 12px;
@@ -1006,6 +1065,7 @@ input {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
+        margin: 5px 10px;
     }
 }
 
@@ -1041,9 +1101,43 @@ input {
 }
 
 .pagination {
-    display: inline-flex;
-    gap: 8px;
+    display: flex;
     align-items: center;
+    gap: 16px;
+    width: 100%;
+}
+
+.pagination__nav {
+    flex: 0 0 auto;
+    display: flex;
+}
+
+.pagination__nav--prev {
+    justify-content: flex-start;
+}
+
+.pagination__nav--next {
+    justify-content: flex-end;
+}
+
+.pagination__pages {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    padding: 0 6px;
+}
+
+.pagination__pages::-webkit-scrollbar {
+    height: 6px;
+}
+
+.pagination__pages::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45);
+    border-radius: 999px;
 }
 
 .pagination a,
