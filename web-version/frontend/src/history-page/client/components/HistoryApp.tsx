@@ -158,7 +158,7 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
     const dialog = useDialogState(props.checkFormatList);
     const dialogState = dialog.state;
 
-    const statusCounts = useMemo(() => {
+    const pageStatusCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         for (const item of items) {
             const key = item.status ?? 'unknown';
@@ -166,6 +166,17 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
         }
         return counts;
     }, [items]);
+
+    const statusCounts = useMemo(() => {
+        const mergedCounts: Record<string, number> = { ...props.statusCounts };
+        const pageEntries = Object.entries(pageStatusCounts);
+        for (const [statusKey, count] of pageEntries) {
+            if (!(statusKey in mergedCounts)) {
+                mergedCounts[statusKey] = count;
+            }
+        }
+        return mergedCounts;
+    }, [pageStatusCounts, props.statusCounts]);
 
     const statusOptions = useMemo<StatusFilterOption[]>(() => {
         const remaining = new Set(Object.keys(statusCounts));

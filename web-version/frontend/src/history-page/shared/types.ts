@@ -1,5 +1,6 @@
 export type {
     FormatOption,
     AddDownloadDialogMode,
-    HistoryItemBase
+    HistoryItemBase,
+    HistoryPageViewProps
 } from '@shared/history-page';

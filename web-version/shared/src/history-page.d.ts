@@ -45,4 +45,5 @@ export interface HistoryPageViewProps {
     searchTerm?: string;
     wsPath: string;
     checkFormatList: boolean;
+    statusCounts: Record<string, number>;
 }

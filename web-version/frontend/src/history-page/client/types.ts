@@ -1,4 +1,4 @@
-import type { FormatOption, HistoryItemBase } from '../shared/types.js';
+import type { FormatOption, HistoryItemBase, HistoryPageViewProps } from '../shared/types.js';
 
 export interface HistoryItem extends HistoryItemBase {}
 
@@ -12,18 +12,9 @@ export interface RequestDownloadPayload {
     formatId?: string;
 }
 
-export interface HistoryPageBootstrap {
+export type HistoryPageBootstrap = Omit<HistoryPageViewProps, 'items'> & {
     items: HistoryItem[];
-    total: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-    showingFrom: number;
-    showingTo: number;
-    searchTerm?: string;
-    wsPath: string;
-    checkFormatList: boolean;
-}
+};
 
 export interface WebSocketMessage {
     type?: string;

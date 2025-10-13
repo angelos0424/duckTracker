@@ -58,6 +58,7 @@ export interface SearchDownloadsResult {
     page: number;
     pageSize: number;
     items: DownloadRecordRow[];
+    statusCounts: Record<string, number>;
 }
 
 let instance: BetterSqliteDatabase | null = null;
@@ -415,10 +416,28 @@ export function searchDownloads({ searchTerm = '', page = 1, pageSize = 20 }: Se
 
     const items = itemsStmt.all({ ...params, limit: safePageSize, offset }) as DownloadRecordRow[];
 
+    const statusCountsStmt = db.prepare(`
+    SELECT status, COUNT(*) AS count
+    FROM downloads
+    ${whereClause}
+    GROUP BY status
+  `);
+
+    const statusCountsRows = statusCountsStmt.all(params) as Array<{ status: string; count: number }>;
+    const statusCounts = statusCountsRows.reduce<Record<string, number>>((accumulator, row) => {
+        if (!row || typeof row.status !== 'string') {
+            return accumulator;
+        }
+        const count = typeof row.count === 'number' && Number.isFinite(row.count) ? row.count : 0;
+        accumulator[row.status] = count;
+        return accumulator;
+    }, {});
+
     return {
         total,
         page: safePage,
         pageSize: safePageSize,
-        items
+        items,
+        statusCounts
     };
 }

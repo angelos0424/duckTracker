@@ -133,6 +133,7 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
             total: result.total,
             page,
             pageSize: result.pageSize,
+            statusCounts: result.statusCounts,
             searchTerm,
             wsPath: config.wsPath,
             checkFormatList: config.checkFormatList

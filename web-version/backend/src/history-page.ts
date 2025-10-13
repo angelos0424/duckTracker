@@ -6,6 +6,7 @@ export interface RenderHistoryPageOptions {
     total: number;
     page: number;
     pageSize: number;
+    statusCounts: Record<string, number>;
     searchTerm?: string;
     wsPath?: string;
     checkFormatList: boolean;
@@ -25,7 +26,8 @@ function buildHistoryPageProps({
     pageSize,
     searchTerm,
     wsPath,
-    checkFormatList
+    checkFormatList,
+    statusCounts
 }: RenderHistoryPageOptions): HistoryPageViewProps {
     const safePageSize = Math.max(1, pageSize);
     const totalPages = Math.max(1, Math.ceil(total / safePageSize));
@@ -42,7 +44,8 @@ function buildHistoryPageProps({
         showingTo,
         searchTerm,
         wsPath: normaliseWsPath(wsPath),
-        checkFormatList
+        checkFormatList,
+        statusCounts
     };
 }
 
