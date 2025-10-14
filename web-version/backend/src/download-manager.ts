@@ -1270,7 +1270,9 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             '-o',
             this.config.template,
             '-f',
-            requestedFormat
+            requestedFormat,
+            '--extractor-args',
+            '"youtube:player-client=web_embedded,tv_embedded"'
         ];
 
         if (cookieFilePath) {
