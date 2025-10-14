@@ -1082,7 +1082,9 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             url,
             '-j',
             '--format-sort',
-            'res,tbr,ext,filesize'
+            'res,tbr,ext,filesize',
+            '--extractor-args',
+            'youtube:player-client=web_embedded,tv_embedded'
         ];
 
         if (cookieFilePath) {
@@ -1272,7 +1274,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             '-f',
             requestedFormat,
             '--extractor-args',
-            '"youtube:player-client=web_embedded,tv_embedded"'
+            'youtube:player-client=web_embedded,tv_embedded'
         ];
 
         if (cookieFilePath) {
