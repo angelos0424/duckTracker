@@ -103,12 +103,24 @@ export class ToolbarService {
         break;
     }
 
-    if (!parent || parent.querySelector(`div.${this.TOOLBAR_CLASS}.${'url-'+els.urlId}`)) {
-      if (!parent) {
-        console.log('No parent found:', els);
-      } else {
+    if (!parent) {
+      console.log('No parent found:', els);
+      return;
+    }
+
+    const existingToolbar = document.querySelector(`.${this.TOOLBAR_CLASS}.url-${els.urlId}`) as HTMLElement | null;
+
+    if (existingToolbar) {
+      if (existingToolbar.parentElement === parent) {
         console.log('Toolbar already exists:', parent);
+        return;
       }
+
+      existingToolbar.remove();
+    }
+
+    if (parent.querySelector(`div.${this.TOOLBAR_CLASS}.url-${els.urlId}`)) {
+      console.log('Toolbar already exists in parent:', parent);
       return;
     }
 
