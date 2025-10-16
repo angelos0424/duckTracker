@@ -1083,8 +1083,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             '-j',
             '--format-sort',
             'res,tbr,ext,filesize',
-            // '--extractor-args',
-            // 'youtube:player-client=web_embedded,tv_embedded'
+            '--extractor-args',
+            'youtube:player-client=web_embedded,tv_embedded'
         ];
 
         if (cookieFilePath) {
@@ -1093,6 +1093,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             }
             args.push('--cookies', cookieFilePath);
         } else if (chromePath) {
+            console.log('Using chromePath');
             args.push('--cookies-from-browser', chromePath);
         }
         args.push('--newline');
@@ -1273,8 +1274,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             this.config.template,
             '-f',
             requestedFormat,
-            // '--extractor-args',
-            // 'youtube:player-client=web_embedded,tv_embedded'
+            '--extractor-args',
+            'youtube:player-client=web_embedded,tv_embedded'
         ];
 
         if (cookieFilePath) {
