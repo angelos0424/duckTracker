@@ -23,7 +23,6 @@ export const useIPC = () => {
     };
 
     const stopDownload = (id: string): Promise<void> => {
-      console.log('stopDownload', id);
       return window.electronAPI.stopDownload(id);
     };
 

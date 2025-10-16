@@ -28,13 +28,11 @@ class ApiService {
 
   async get(endpoint: string) {
     await this.ready;
-    console.log(`[Req] GET ${this.apiUrl}/${endpoint}`);
     try {
       const response = await fetch(`${this.apiUrl}/${endpoint}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      console.log(`[Res] OK ${response.json()}`)
       return await response.json();
     } catch (error) {
       console.error(`[Res] Error ${error}`);

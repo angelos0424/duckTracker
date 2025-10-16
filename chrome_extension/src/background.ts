@@ -26,7 +26,6 @@ const downloadInitiatorTabs = new Map<string, number>();
 const sendMsg = (tabId: number, action: string, text: any) => {
   chrome.tabs.get(tabId, (tab) => {
     if (chrome.runtime.lastError) {
-      // Tab does not exist, it was likely closed.
       console.log(`Tab ${tabId} not found, removing from download tracking.`);
       for (const [urlId, id] of downloadInitiatorTabs.entries()) {
         if (id === tabId) {
@@ -160,7 +159,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // Listen for messages from the content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id; // popup.tsx에서 보낸 경우, 없다.
-  const { addToHistory, clearHistory, removeFromHistory, checkHistory } = useHistoryStore.getState();
+  const { toggleHistory, clearHistory, removeFromHistory, checkHistory } = useHistoryStore.getState();
 
   if (message.action === 'check') {
     // This should be handled by the store now
@@ -168,9 +167,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 
   } else if (message.action === 'save_history') {
-    const { url, urlId } = message.text;
-    // Todo save title?
-    addToHistory(urlId, '').then((res) => {
+    const { urlId } = message.text;
+    // Todo save title ? how to get title in browser..
+    toggleHistory(urlId).then((res) => {
       if (res) {
         apiService.post('save_history', message.text);
       }
@@ -245,7 +244,6 @@ async function connectWebSocket() {
   ws.onopen = () => {
     console.log('WebSocket connected');
     useHistoryStore.getState().getHistory().then(res => {
-      console.log('[sync-history] send data to server : ', res);
       ws.send(JSON.stringify({ type: 'sync-history', data: res }));
     })
   };
@@ -253,8 +251,6 @@ async function connectWebSocket() {
   ws.onmessage = (event) => {
     try {
       const message = JSON.parse(event.data);
-
-      console.log('Received message:', message);
 
       switch (message.type) {
         case 'download':
@@ -265,7 +261,6 @@ async function connectWebSocket() {
           break;
         case 'sync-history': {
           const missingHistories = message.data;
-          console.log('Syncing missing histories:', missingHistories);
           useHistoryStore.getState().syncHistoryFromServer(missingHistories);
           break;
         }

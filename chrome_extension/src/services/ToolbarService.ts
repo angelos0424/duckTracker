@@ -1,4 +1,3 @@
-// services/ToolbarService.ts
 import {createRoot} from 'react-dom/client';
 import {TrackToolbar} from '../component/TrackToolbar';
 import React from 'react';
@@ -112,7 +111,6 @@ export class ToolbarService {
 
     if (existingToolbar) {
       if (existingToolbar.parentElement === parent) {
-        console.log('Toolbar already exists:', parent);
         return;
       }
 
@@ -120,7 +118,6 @@ export class ToolbarService {
     }
 
     if (parent.querySelector(`div.${this.TOOLBAR_CLASS}.url-${els.urlId}`)) {
-      console.log('Toolbar already exists in parent:', parent);
       return;
     }
 

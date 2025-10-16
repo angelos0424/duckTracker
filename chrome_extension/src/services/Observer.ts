@@ -142,7 +142,6 @@ export class Observer {
     }
     // 2. 검색 페이지
     else if (url.includes('/results?')) {
-      console.log('검색페이지')
       node.querySelectorAll('ytd-video-renderer > div#dismissible > ytd-thumbnail > a#thumbnail, ytm-shorts-lockup-view-model-v2 > ytm-shorts-lockup-view-model > a, yt-lockup-view-model > div > a')
         .forEach(el => {
           if ((el as HTMLElement).dataset.trackerProcessed) return;
@@ -154,7 +153,6 @@ export class Observer {
     }
     // 3. 동영상 단일 페이지
     else if (url.includes('/watch?')) {
-      console.log('동영상 단일 페이지')
       switch (node.tagName) {
         case 'YTD-PAGE-MANAGER':
         case 'YTD-WATCH-FLEXY':
@@ -201,8 +199,6 @@ export class Observer {
     }
     // 4. 숏츠 단일 페이지
     else if (url.includes('/shorts/')) {
-      console.log('숏츠 단일 페이지', node.tagName)
-
       const reelNode = node.tagName === 'YTD-REEL-VIDEO-RENDERER'
         ? node
         : node.closest('ytd-reel-video-renderer#reel-video-renderer');
@@ -262,8 +258,6 @@ export class Observer {
         tempObserver.disconnect();
       }, 2000); // 5 seconds timeout
     } else if (url.startsWith('https://www.youtube.com/@')) {
-      // 채널 들어옴.
-      console.log('채널 페이지', url);
       const channelPath = url.split('/')[4]?.split('?')[0] ?? '';
 
       if (channelPath === 'playlists') {
@@ -283,7 +277,6 @@ export class Observer {
             (el as HTMLElement).dataset.trackerProcessed = 'true';
           })
       } else if (channelPath === 'videos') {
-        console.log('채널 -> 비디오', node)
         if (node.tagName !== 'YTD-RICH-ITEM-RENDERER') {
           if (origin === 'scanForExistingElements') {
             node.querySelectorAll('ytd-rich-item-renderer')
@@ -296,7 +289,6 @@ export class Observer {
 
         const findAndProcessChannelVideoTarget = (targetNode: Element) => {
           const target = targetNode.querySelector(selector) as HTMLAnchorElement;
-          console.log('find target', target)
           if (target) {
             const targetHref = target?.href;
             if (!targetHref) return false;
@@ -344,12 +336,10 @@ export class Observer {
 
         node.querySelectorAll('ytd-thumbnail > a#thumbnail')
           .forEach(el => {
-            console.log(el);
             if ((el as HTMLElement).dataset.trackerProcessed) return;
             const els: DownloadObject = { type: ElementTypes.VIDEO, from: FromType.CHANNEL, url: '', urlId: '' };
             this.getElementsInfo(el, els);
             this.onElementFound(el, els);
-            console.log(els);
             (el as HTMLElement).dataset.trackerProcessed = 'true';
           })
       } else if (channelPath === 'shorts') {
@@ -373,7 +363,6 @@ export class Observer {
     }
     // 5. 재생목록 페이지
     else if (url.includes('/feed/playlists')) {
-      console.log('재생목록 페이지')
       node.querySelectorAll('ytd-rich-item-renderer > div#content > yt-lockup-view-model > div > a')
         .forEach(el => {
           if ((el as HTMLElement).dataset.trackerProcessed) return;

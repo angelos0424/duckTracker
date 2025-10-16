@@ -11,7 +11,7 @@ interface TrackToolbarProps {
 }
 
 export const TrackToolbar: React.FC<TrackToolbarProps> = ({ els, isPlayList }) => {
-  const { saved, isDownloading, saveHistory, download, percent } = useHistoryService(els, isPlayList);
+  const { saved, isDownloading, toggleHistory, download, percent } = useHistoryService(els, isPlayList);
 
   const className = `video-toolbar`
   return (
@@ -21,7 +21,7 @@ export const TrackToolbar: React.FC<TrackToolbarProps> = ({ els, isPlayList }) =
       </div>
       <button
         className={`save-history-btn ${saved ? 'saved' : ''}`}
-        onClick={saveHistory}
+        onClick={toggleHistory}
         disabled={isDownloading} // 다운로드 중 비활성화
       >
         <FontAwesomeIcon icon={saved ? faCheck : faSave} />

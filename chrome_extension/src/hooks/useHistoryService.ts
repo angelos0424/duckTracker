@@ -32,7 +32,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
       if (data.status === 'complete' || data.status === 'completed') {
         setIsDownloading(false);
         setPercent(100);
-        saveHistory();
+        toggleHistory();
       } else if (data.status === 'error') {
         setIsDownloading(false);
         alert(`Download failed: ${data.error}`);
@@ -59,7 +59,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
     });
   }, [urlId]);
 
-  const saveHistory = useCallback(() => {
+  const toggleHistory = useCallback(() => {
     chrome.runtime.sendMessage({ action: 'save_history', text: downloadObj }, (response: any) => {
       setSaved(response.success);
     });
@@ -89,8 +89,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
   }, [url, urlId, isPlayList]);
 
   const stopDownload = useCallback(() => {
-    console.log("Stopping download for", urlId);
-    chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({
       action: 'stop_download',
       text: { 
         action: 'stop',
@@ -100,5 +99,5 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
     setIsDownloading(false); // Optimistically update UI
   }, [urlId]);
 
-  return { saved, isDownloading, saveHistory, download, percent };
+  return { saved, isDownloading, toggleHistory, download, percent };
 };

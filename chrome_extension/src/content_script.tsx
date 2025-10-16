@@ -23,7 +23,6 @@ class ContentScript {
       ToolbarService.createToolbar(element, els);
     }
     else {
-      console.log("No url found in element: ", element, " - ", els);
       this.observeForTarget(element, els);
     }
   }
@@ -33,7 +32,6 @@ class ContentScript {
       mutations.forEach(mutation => {
         // 이쪽으로 들어오는 애들 좀 봐야할거 같은데.
         if (mutation.type === 'attributes' && ((mutation.target as HTMLElement).hasAttribute('src') || (mutation.target as HTMLElement).hasAttribute('href')))  {
-          console.log(`src :: ${(mutation.target as HTMLElement).getAttribute('src')}, href :: ${(mutation.target as HTMLElement).getAttribute('href')}`);
           this.handleElementFound(element, els);
           observer.disconnect();
         }
@@ -58,7 +56,6 @@ class ContentScript {
         });
       } else if (msg.action === 'toggle_toolbar_visibility') {
         const toolbars = document.querySelectorAll(`.${ToolbarService.TOOLBAR_CLASS}`);
-        console.log('toolbars', toolbars);
         toolbars.forEach(toolbar => {
           const htmlToolbar = toolbar as HTMLElement;
           if (htmlToolbar.style.display === 'none') {
