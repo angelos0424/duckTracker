@@ -2,6 +2,7 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     build-essential \
@@ -25,7 +26,7 @@ ENV LC_ALL=ko_KR.UTF-8
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir yt-dlp
+RUN pip install --no-cache-dir yt-dlp bgutil-ytdlp-pot-provider
 
 COPY package.json package-lock.json ./
 RUN npm ci
