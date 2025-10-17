@@ -1073,6 +1073,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         const runner = this.config.runner;
         const cookieFilePath = 'cookieFilePath' in runner ? runner.cookieFilePath : undefined;
         const chromePath = 'chromePath' in runner ? runner.chromePath : undefined;
+        const ytDlpExtraArgs = 'ytDlpExtraArgs' in runner ? runner.ytDlpExtraArgs : undefined;
 
         if (!cookieFilePath && !chromePath) {
             throw new Error('cookieFilePath or chromePath must be set');
@@ -1083,9 +1084,14 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             '-j',
             '--format-sort',
             'res,tbr,ext,filesize',
-            '--extractor-args',
-            'youtube:player-client=web_embedded,tv_embedded'
+            // '--extractor-args',
+            // 'youtube:player-client=web_embedded,tv_embedded'
         ];
+
+        if (ytDlpExtraArgs) {
+            args.push('--extractor-args')
+            args.push(...ytDlpExtraArgs);
+        }
 
         if (cookieFilePath) {
             if (!fs.existsSync(cookieFilePath)) {
@@ -1256,6 +1262,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         const runner = this.config.runner;
         const cookieFilePath = 'cookieFilePath' in runner ? runner.cookieFilePath : undefined;
         const chromePath = 'chromePath' in runner ? runner.chromePath : undefined;
+        const ytDlpExtraArgs = 'ytDlpExtraArgs' in runner ? runner.ytDlpExtraArgs : undefined;
 
         if (!cookieFilePath && !chromePath) {
             throw new Error('cookieFilePath or chromePath must be set');
@@ -1274,9 +1281,14 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             this.config.template,
             '-f',
             requestedFormat,
-            '--extractor-args',
-            'youtube:player-client=web_embedded,tv_embedded'
+            // '--extractor-args',
+            // 'youtube:player-client=web_embedded,tv_embedded'
         ];
+
+        if (ytDlpExtraArgs) {
+          args.push('--extractor-args')
+          args.push(...ytDlpExtraArgs);
+        }
 
         if (cookieFilePath) {
             if (!fs.existsSync(cookieFilePath)) {

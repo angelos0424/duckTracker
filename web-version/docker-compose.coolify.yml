@@ -1,4 +1,21 @@
 services:
+  pot-provider:
+    build:
+      context: ./bgutil-pot-provider   # <- 아래 Dockerfile을 둘 디렉터리
+      dockerfile: Dockerfile
+    container_name: pot-provider
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - TOKEN_TTL=21600        # 토큰 캐시 TTL(초). 필요 시 조정
+    expose:
+      - "8080"                 # 내부 통신만 (외부 포트 publish 안 함)
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
   ducktracker-server:
     build: .
     container_name: ducktracker-web-version

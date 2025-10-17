@@ -18,6 +18,7 @@ export interface DockerRunnerConfig {
   cookieFilePath: string;
   chromePath: string;
   workDir: string;
+  ytDlpExtraArgs?: string;
 }
 
 export interface BinaryRunnerConfig {
@@ -25,6 +26,7 @@ export interface BinaryRunnerConfig {
   ytDlpBinary: string;
   cookieFilePath?: string;
   chromePath?: string;
+  ytDlpExtraArgs?: string;
 }
 
 export type RunnerConfig = DockerRunnerConfig | BinaryRunnerConfig;
@@ -78,6 +80,7 @@ function buildRunner(downloadDir: string): RunnerConfig {
     const dockerCommand = process.env.YT_DLP_COMMAND || 'yt-dlp';
     const cookieFilePath = process.env.COOKIE_FILE_PATH || '';
     const chromePath = process.env.CHROME_PROFILE_PATH || '';
+    const ytDlpExtraArgs = process.env.YT_DLP_EXTRA_ARGS || '';
 
     return {
       type: 'docker',
@@ -87,6 +90,7 @@ function buildRunner(downloadDir: string): RunnerConfig {
       volumesFrom,
       cookieFilePath,
       chromePath,
+      ytDlpExtraArgs,
       workDir: downloadDir
     };
   }
@@ -95,7 +99,8 @@ function buildRunner(downloadDir: string): RunnerConfig {
     type: 'binary',
     ytDlpBinary: process.env.YT_DLP_BINARY || 'yt-dlp',
     cookieFilePath: process.env.COOKIE_FILE_PATH || undefined,
-    chromePath: process.env.CHROME_PROFILE_PATH || undefined
+    chromePath: process.env.CHROME_PROFILE_PATH || undefined,
+    ytDlpExtraArgs: process.env.YT_DLP_EXTRA_ARGS || undefined,
   };
 }
 
