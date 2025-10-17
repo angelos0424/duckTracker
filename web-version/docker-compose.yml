@@ -24,6 +24,7 @@ services:
       - DOCKER_BIN=${DOCKER_BIN:-docker}
       - SERVER_CONTAINER_NAME=${SERVER_CONTAINER_NAME:-ducktracker-web-version}
       - COOKIE_FILE_PATH=${COOKIE_FILE_PATH}
+      - YT_DLP_EXTRA_ARGS=--extractor-args "youtubepot-bgutilhttp:base_url=http://pot-provider:8080"
     ports:
       - "${PORT:-8080}:8080"
 

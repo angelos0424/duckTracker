@@ -358,6 +358,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         try {
             spawnResult = await this.spawnDownloadProcessPromise(ytArgs, request);
         } catch (error) {
+          console.log('get format list error - ', error)
             const err = error as Error;
             const errorState: DownloadSnapshot = {
                 status: 'error',
@@ -620,6 +621,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         try {
             spawnResult = this.spawnDownloadProcess(ytArgs, request);
         } catch (error) {
+            console.log("Errors - ", error)
             const err = error as Error;
             const errorState: DownloadSnapshot = {
                 status: 'error',
@@ -1103,6 +1105,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             args.push('--cookies-from-browser', chromePath);
         }
         args.push('--newline');
+        console.log('args = >>> ', args)
 
         return args;
     }
@@ -1306,7 +1309,9 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         //     args.push(`res:${this.config.qualityLimit}`);
         // }
 
-        return args;
+      console.log('args = >>> ', args)
+
+      return args;
     }
 
     private deriveTitleFromPath(filePath: string): string {

@@ -25,6 +25,7 @@ services:
       - DOCKER_BIN=${DOCKER_BIN:-docker}
       - SERVER_CONTAINER_NAME=${SERVER_CONTAINER_NAME:-ducktracker-web-version}
       - COOKIE_FILE_PATH=${COOKIE_FILE_PATH}
+#      - YT_DLP_EXTRA_ARGS=--extractor-args "youtubepot-bgutilhttp:base_url=http://pot-provider:8080" # coolify environments
     expose:
       - "${PORT:-8080}"   # Traefik이 내부 포트로 접근
     volumes:
