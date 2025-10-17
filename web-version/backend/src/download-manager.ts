@@ -358,7 +358,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
         try {
             spawnResult = await this.spawnDownloadProcessPromise(ytArgs, request);
         } catch (error) {
-          console.log('get format list error - ', error)
+            console.log('get format list error - ', error)
             const err = error as Error;
             const errorState: DownloadSnapshot = {
                 status: 'error',
@@ -413,6 +413,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                         return;
                     }
 
+                    console.log('getFormat code === 0')
+
                     const lines = stdoutBuffer
                         .split(/\r?\n/u)
                         .map((line) => line.trim())
@@ -439,6 +441,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                     for (const line of lines) {
                         try {
                             parsed = JSON.parse(line);
+                            console.log('getFormat parsed === ', parsed)
                             break;
                         } catch (parseError) {
                             console.warn('[history] Failed to parse yt-dlp format line', { line, error: (parseError as Error).message });
