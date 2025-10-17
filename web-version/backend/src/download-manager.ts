@@ -1015,7 +1015,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             dockerArgs.push('--name', containerName);
             dockerArgs.push(runner.dockerImage);
-            dockerArgs.push(..ytArgs);
+            dockerArgs.push(...ytArgs);
 
             const child = spawn(runner.dockerBin, dockerArgs, {
                 stdio: ['ignore', 'pipe', 'pipe']
