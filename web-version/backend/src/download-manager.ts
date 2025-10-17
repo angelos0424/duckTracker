@@ -1015,7 +1015,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
             dockerArgs.push('--name', containerName);
             dockerArgs.push(runner.dockerImage);
-            dockerArgs.push(...ytArgs);
+            dockerArgs.push(..ytArgs);
 
             const child = spawn(runner.dockerBin, dockerArgs, {
                 stdio: ['ignore', 'pipe', 'pipe']
@@ -1092,7 +1092,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
         if (ytDlpExtraArgs) {
             args.push('--extractor-args')
-            args.push(...ytDlpExtraArgs);
+            args.push(ytDlpExtraArgs);
         }
 
         if (cookieFilePath) {
@@ -1290,7 +1290,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
 
         if (ytDlpExtraArgs) {
           args.push('--extractor-args')
-          args.push(...ytDlpExtraArgs);
+          args.push(ytDlpExtraArgs);
         }
 
         if (cookieFilePath) {
