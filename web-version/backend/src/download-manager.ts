@@ -389,7 +389,6 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                 if (child.stdout) {
                     child.stdout.setEncoding('utf8');
                     child.stdout.on('data', (chunk: string) => {
-                        console.log('[yt-dlp stdout]', chunk);
                         stdoutBuffer += chunk;
                     });
                 }
@@ -397,13 +396,13 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                 if (child.stderr) {
                     child.stderr.setEncoding('utf8');
                     child.stderr.on('data', (chunk: string) => {
-                        console.log('[yt-dlp stderr]', chunk);
                         stderrBuffer += chunk;
                     });
                 }
 
                 child.on('error', (processError) => {
                     const message = processError instanceof Error ? processError.message : String(processError);
+                    console.log('getFormat error === ', message)
                     reject(new Error(message));
                 });
 
