@@ -1281,6 +1281,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
                 : this.config.format;
 
         const args = [
+            '-v',
             request.url,
             '-P',
             this.config.downloadDir,
@@ -1288,7 +1289,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             this.config.template,
             '-f',
             requestedFormat,
-            // '--extractor-args',
+            '--extractor-args',
+            'youtubepot-bgutilhttp:base_url=http://127.0.0.1:8080'
             // 'youtube:player-client=web_embedded,tv_embedded'
         ];
 
