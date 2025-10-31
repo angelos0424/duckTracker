@@ -464,11 +464,12 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                     }
                 }
 
-                if (navigatedAway) {
-                    void handleRemoveFileAfterDownload(urlId, true);
-                } else {
-                    await handleRemoveFileAfterDownload(urlId, false);
-                }
+                // 파일 다운로드 후에도 자동으로 삭제하지 않도록.
+                // if (navigatedAway) {
+                //     void handleRemoveFileAfterDownload(urlId, true);
+                // } else {
+                //     await handleRemoveFileAfterDownload(urlId, false);
+                // }
             } catch (error) {
                 window.alert((error as Error).message || '파일을 다운로드할 수 없습니다.');
             } finally {
