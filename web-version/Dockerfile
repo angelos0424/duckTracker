@@ -11,6 +11,9 @@ RUN apt-get update \
     python3 \
     python3-venv \
     python3-pip \
+    curl \
+    ca-certificates \
+    unzip \
     locales \
   && rm -rf /var/lib/apt/lists/*
 
@@ -34,13 +37,13 @@ RUN python3 -m pip install -U --pre "yt-dlp[default]" \
   && python3 -m pip install -U bgutil-ytdlp-pot-provider
 # 참고: https://github.com/yt-dlp/ejs 의 권장 설치는 pip install -U yt-dlp-ejs 임  [oai_citation:2‡GitHub](https://github.com/yt-dlp/ejs?utm_source=chatgpt.com)
 
-# ===== JS 런타임(Deno) 설치 =====
-# 기본 install.sh는 /root/.deno 에 까니까, 컨테이너에선 /usr/local 밑으로 강제
-RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s -- \
-  && ln -s /usr/local/bin/deno /usr/bin/deno
-# 그리고 PATH 보정
-ENV DENO_INSTALL=/usr/local
-ENV PATH="$DENO_INSTALL/bin:$PATH"
+# ★ deno 설치 (여기가 핵심)
+# - 설치 위치를 /usr/local 로 고정하면 이후 shell 안 타도 PATH 에 들어감
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh \
+  && ln -sf /usr/local/bin/deno /usr/bin/deno
+
+# PATH 최종 확정: venv -> /usr/local/bin -> 나머지
+ENV PATH="/opt/venv/bin:/usr/local/bin:$PATH"
 
 COPY package.json package-lock.json ./
 RUN npm ci
