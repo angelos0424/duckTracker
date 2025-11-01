@@ -1105,8 +1105,8 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             }
             args.push('--cookies', cookieFilePath);
         } else if (chromePath) {
-            console.log('Using chromePath');
-            args.push('--cookies-from-browser', chromePath);
+            // console.log('Using chromePath');
+            // args.push('--cookies-from-browser', chromePath);
         }
         args.push('--newline');
         console.log('args = >>> ', args)
@@ -1303,7 +1303,7 @@ export class DownloadManager extends EventEmitter<DownloadManagerEvents> {
             }
             args.push('--cookies', cookieFilePath);
         } else if (chromePath) {
-            args.push('--cookies-from-browser', chromePath);
+            // args.push('--cookies-from-browser', chromePath);
         }
 
         args.push('--newline');
