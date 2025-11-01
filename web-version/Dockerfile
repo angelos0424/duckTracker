@@ -16,7 +16,7 @@ RUN apt-get update \
 
 # 로케일 생성 (ko_KR.UTF-8)
 RUN sed -i '/ko_KR.UTF-8/s/^# //g' /etc/locale.gen \
-  && locale-gen ko_KR.UTF-8
+  && locale-gen ko_KR.UTF-8 \
 
 # 로케일 환경변수 설정
 ENV LANG=ko_KR.UTF-8
@@ -26,8 +26,20 @@ ENV LC_ALL=ko_KR.UTF-8
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN python3 -m pip install -U --pre "yt-dlp[default]"
-RUN pip install --no-cache-dir -U bgutil-ytdlp-pot-provider
+# 4. yt-dlp + ejs + po-token client 플러그인
+#    - yt-dlp는 pre/nightly 따라가기
+#    - yt-dlp-ejs는 같은 venv에 꼭 설치
+RUN python3 -m pip install -U --pre "yt-dlp[default]" \
+  && python3 -m pip install -U yt-dlp-ejs \
+  && python3 -m pip install -U bgutil-ytdlp-pot-provider
+# 참고: https://github.com/yt-dlp/ejs 의 권장 설치는 pip install -U yt-dlp-ejs 임  [oai_citation:2‡GitHub](https://github.com/yt-dlp/ejs?utm_source=chatgpt.com)
+
+# (선택) JS 런타임을 deno로 고정하고 싶으면
+ RUN curl -fsSL https://deno.land/install.sh | sh
+ ENV DENO_INSTALL="/root/.deno"
+ ENV PATH="$DENO_INSTALL/bin:$PATH"
+
+RUN #pip install --no-cache-dir -U bgutil-ytdlp-pot-provider
 
 COPY package.json package-lock.json ./
 RUN npm ci
