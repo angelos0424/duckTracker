@@ -26,7 +26,8 @@ ENV LC_ALL=ko_KR.UTF-8
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir -U yt-dlp bgutil-ytdlp-pot-provider
+RUN python3 -m pip install -U --pre "yt-dlp[default]"
+RUN pip install --no-cache-dir -U bgutil-ytdlp-pot-provider
 
 COPY package.json package-lock.json ./
 RUN npm ci
