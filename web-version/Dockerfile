@@ -34,12 +34,13 @@ RUN python3 -m pip install -U --pre "yt-dlp[default]" \
   && python3 -m pip install -U bgutil-ytdlp-pot-provider
 # 참고: https://github.com/yt-dlp/ejs 의 권장 설치는 pip install -U yt-dlp-ejs 임  [oai_citation:2‡GitHub](https://github.com/yt-dlp/ejs?utm_source=chatgpt.com)
 
-# (선택) JS 런타임을 deno로 고정하고 싶으면
- RUN curl -fsSL https://deno.land/install.sh | sh
- ENV DENO_INSTALL="/root/.deno"
- ENV PATH="$DENO_INSTALL/bin:$PATH"
-
-RUN #pip install --no-cache-dir -U bgutil-ytdlp-pot-provider
+# ===== JS 런타임(Deno) 설치 =====
+# 기본 install.sh는 /root/.deno 에 까니까, 컨테이너에선 /usr/local 밑으로 강제
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s -- \
+  && ln -s /usr/local/bin/deno /usr/bin/deno
+# 그리고 PATH 보정
+ENV DENO_INSTALL=/usr/local
+ENV PATH="$DENO_INSTALL/bin:$PATH"
 
 COPY package.json package-lock.json ./
 RUN npm ci
