@@ -1,7 +1,8 @@
 // content.ts
-import {DownloadObject, ElementTypes, Observer} from './services/Observer';
-import {ToolbarService} from './services/ToolbarService';
-import {createRoot, Root} from 'react-dom/client';
+import { Observer } from './services/Observer';
+import { DownloadObject } from './types';
+import { ToolbarService } from './services/ToolbarService';
+import { createRoot, Root } from 'react-dom/client';
 import useHistoryStore from './store/index';
 import React from 'react';
 
@@ -18,38 +19,18 @@ class ContentScript {
     this.initializeMessageListener();
   }
 
-  private handleElementFound(element: Element, els : DownloadObject): void {
-    if (els.url) {
+  private handleElementFound(element: Element, els: DownloadObject): void {
+    if (els.url && els.urlId) {
       ToolbarService.createToolbar(element, els);
     }
-    else {
-      this.observeForTarget(element, els);
-    }
-  }
-
-  private observeForTarget(element: Element, els: DownloadObject): void {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        // 이쪽으로 들어오는 애들 좀 봐야할거 같은데.
-        if (mutation.type === 'attributes' && ((mutation.target as HTMLElement).hasAttribute('src') || (mutation.target as HTMLElement).hasAttribute('href')))  {
-          this.handleElementFound(element, els);
-          observer.disconnect();
-        }
-      });
-    });
-
-    observer.observe(element, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['src'],
-    });
-
-    setTimeout(() => observer.disconnect(), 50000);
+    // If no URL/ID, strategies usually won't call onElementFound, 
+    // or they handle async loading internally (like ShortsPageStrategy).
+    // So distinct observeForTarget might be redundant or needs to be specific.
+    // Legacy logic had else { observeForTarget } but BaseStrategy checks for urlId before calling onFound.
   }
 
   private initializeMessageListener(): void {
-    chrome.runtime.onMessage.addListener((msg:IMsg) => {
+    chrome.runtime.onMessage.addListener((msg: IMsg) => {
       if (msg.action === 'url_changed' || msg.action === 'remove_toolbar') {
         ToolbarService.removeAllToolbars().then(() => {
           this.observer.init();

@@ -146,7 +146,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete') {
       if ((tab.url && lastUrl !== tab.url) || tab.url === 'https://www.youtube.com/') {
         lastUrl = tab.url;
-        sendMsg(tabId, 'url_changed', { url : tab.url, changeInfo });
+        sendMsg(tabId, 'url_changed', { url: tab.url, changeInfo });
       }
     }
   } catch (error) {
@@ -163,7 +163,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.action === 'check') {
     // This should be handled by the store now
-    checkHistory(message.text).then(res => sendResponse({success: res}))
+    checkHistory(message.text).then(res => sendResponse({ success: res }))
     return true;
 
   } else if (message.action === 'save_history') {
@@ -173,7 +173,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (res) {
         apiService.post('save_history', message.text);
       }
-      sendResponse({success: res})
+      sendResponse({ success: res })
     });
     return true;
   } else if (message.action === 'remove') {
@@ -230,19 +230,25 @@ const buildWebSocketUrl = async (): Promise<string> => {
   }
 };
 
+const RECONNECT_INTERVAL_BASE = 1000;
+const RECONFIG_INTERVAL_MAX = 30000;
+let reconnectDelay = RECONNECT_INTERVAL_BASE;
+
 async function connectWebSocket() {
   let ws: WebSocket;
   try {
     const socketUrl = await buildWebSocketUrl();
     ws = new WebSocket(socketUrl);
   } catch (error) {
-    console.error('Failed to initialize WebSocket connection, retrying...', error);
-    setTimeout(connectWebSocket, 5000);
+    console.error('Failed to initialize WebSocket connection, retrying in ' + reconnectDelay + 'ms...', error);
+    setTimeout(connectWebSocket, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, RECONFIG_INTERVAL_MAX);
     return;
   }
 
   ws.onopen = () => {
     console.log('WebSocket connected');
+    reconnectDelay = RECONNECT_INTERVAL_BASE; // Reset delay on successful connection
     useHistoryStore.getState().getHistory().then(res => {
       ws.send(JSON.stringify({ type: 'sync-history', data: res }));
     })
@@ -276,8 +282,9 @@ async function connectWebSocket() {
   };
 
   ws.onclose = () => {
-    console.log('WebSocket disconnected, attempting to reconnect...');
-    setTimeout(connectWebSocket, 5000); // Reconnect after 5 seconds
+    console.log(`WebSocket disconnected, attempting to reconnect in ${reconnectDelay}ms...`);
+    setTimeout(connectWebSocket, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, RECONFIG_INTERVAL_MAX);
   };
 
   ws.onerror = (error) => {
@@ -289,3 +296,4 @@ async function connectWebSocket() {
 connectWebSocket().catch(error => {
   console.error('Failed to start WebSocket connection:', error);
 });
+

@@ -1,7 +1,7 @@
 import { useContext, useState, useEffect, useCallback } from 'react';
 import { ServiceContext } from '../contexts/ServiceContext';
-import {DownloadObject} from "../services/Observer";
-import {BrowserDownloadStatus} from "../types";
+import { DownloadObject, ElementTypes } from "../types";
+import { BrowserDownloadStatus } from "../types";
 
 export type BackgroundMessage = {
   action: string;
@@ -20,7 +20,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
   const [isDownloading, setIsDownloading] = useState(false);
   const [percent, setPercent] = useState(0);
   const { toolbarService } = useContext(ServiceContext);
-  const {url, urlId} = downloadObj;
+  const { url, urlId } = downloadObj;
 
   const handleMessage = useCallback((message: BackgroundMessage) => {
     if (message.action === 'download_status') {
@@ -91,9 +91,9 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
   const stopDownload = useCallback(() => {
     chrome.runtime.sendMessage({
       action: 'stop_download',
-      text: { 
+      text: {
         action: 'stop',
-        urlId 
+        urlId
       }
     });
     setIsDownloading(false); // Optimistically update UI

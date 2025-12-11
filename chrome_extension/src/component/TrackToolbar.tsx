@@ -1,9 +1,9 @@
-import React, {useEffect} from 'react';
+import React, { useEffect } from 'react';
 import { useHistoryService } from '../hooks/useHistoryService';
 import './TrackToolbar.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {faSave, faCheck, faDownload, faSquare} from '@fortawesome/free-solid-svg-icons';
-import {DownloadObject} from "../services/Observer";
+import { faSave, faCheck, faDownload, faSquare } from '@fortawesome/free-solid-svg-icons';
+import { DownloadObject } from "../types";
 
 interface TrackToolbarProps {
   els: DownloadObject;
@@ -31,7 +31,7 @@ export const TrackToolbar: React.FC<TrackToolbarProps> = ({ els, isPlayList }) =
         onClick={download}
       >
         {isDownloading ? (
-          <FontAwesomeIcon icon={faSquare} spin style={{ color : 'red'}}/>
+          <FontAwesomeIcon icon={faSquare} spin style={{ color: 'red' }} />
         ) : (
           <FontAwesomeIcon icon={faDownload} />
         )}
