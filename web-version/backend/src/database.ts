@@ -279,7 +279,7 @@ export function clearDownloadFilePath(urlId: string): void {
 
     const db = assertDb();
     const stmts = ensureStatements(db);
-    stmts.setFilePath.run({ urlId, filePath: ''});
+    stmts.setFilePath.run({ urlId, filePath: '', fileSizeBytes: null});
 }
 
 export function recordDownloadError(payload: DownloadErrorPayload): void {
