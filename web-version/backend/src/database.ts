@@ -69,6 +69,7 @@ interface Statements {
     insertIfMissing: Statement;
     setStatus: Statement<{ urlId: string; status: DownloadStatus | string; lastError: string | null }>;
     setFilePath: Statement<{ urlId: string; filePath: string; fileSizeBytes: number | null }>;
+    setFilePathOnly: Statement<{ urlId: string; filePath: string }>;
     setTitle: Statement<{ urlId: string; title: string }>;
     selectAllIds: Statement<unknown[], { url_id: string }>;
     selectState: Statement<string, DownloadRecordRow | undefined>;
@@ -138,6 +139,12 @@ function ensureStatements(db: BetterSqliteDatabase): Statements {
       UPDATE downloads
       SET file_path = @filePath,
           file_size_bytes = @fileSizeBytes,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE url_id = @urlId
+    `),
+        setFilePathOnly: db.prepare<{ urlId: string; filePath: string }>(`
+      UPDATE downloads
+      SET file_path = @filePath,
           updated_at = CURRENT_TIMESTAMP
       WHERE url_id = @urlId
     `),
@@ -279,7 +286,7 @@ export function clearDownloadFilePath(urlId: string): void {
 
     const db = assertDb();
     const stmts = ensureStatements(db);
-    stmts.setFilePath.run({ urlId, filePath: '', fileSizeBytes: null});
+    stmts.setFilePathOnly.run({ urlId, filePath: '' });
 }
 
 export function recordDownloadError(payload: DownloadErrorPayload): void {
