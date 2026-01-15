@@ -7,7 +7,7 @@ interface SearchFormProps {
 }
 
 export const SearchForm: React.FC<SearchFormProps> = ({ searchTerm, pageSize, selectedStatuses }) => (
-    <form method="GET" action="/history" className="search-form">
+    <form method="GET" action="/" className="search-form">
         <label htmlFor="history-search" className="visually-hidden">
             URL ID 또는 제목 검색
         </label>

@@ -76,6 +76,7 @@ export function renderHistoryPageToHtml(options: RenderHistoryPageOptions): stri
         '<head>',
         '    <meta charSet="UTF-8" />',
         '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+        '    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8007866307816310" crossorigin="anonymous"></script>',
         '    <title>다운로드 이력</title>',
         '    <link rel="stylesheet" href="/history/assets/history-page.css" />',
         '</head>',

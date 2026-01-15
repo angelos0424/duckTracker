@@ -16,7 +16,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps) {
         const pathname = parsedUrl.pathname ?? '/';
         const method = req.method ?? 'GET';
 
-        if (method === 'GET' && pathname === '/history') {
+        if (method === 'GET' && pathname === '/') {
             handlers.handleHistoryPage(req, res, parsedUrl.query || {});
             return true;
         }
