@@ -13,17 +13,19 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(currentDir, '../../..');
 const frontendSrcDir = path.resolve(repoRoot, 'frontend/src');
 const assetsDir = path.resolve(repoRoot, 'dist/history/assets');
+const distDir = path.resolve(repoRoot, 'dist');
 
-function copyAsset(relativeSource: string, fileName: string): void {
+function copyAsset(relativeSource: string, destinationPath: string): void {
     const sourcePath = path.resolve(frontendSrcDir, relativeSource);
-    const destinationPath = path.resolve(assetsDir, fileName);
+    const resolvedDestination = path.resolve(destinationPath);
 
     if (!fs.existsSync(sourcePath)) {
-        throw new Error(`Missing history asset at ${sourcePath}`);
+        throw new Error(`Missing frontend asset at ${sourcePath}`);
     }
 
-    ensureDirForPath(destinationPath);
-    fs.copyFileSync(sourcePath, destinationPath);
+    ensureDirForPath(resolvedDestination);
+    fs.copyFileSync(sourcePath, resolvedDestination);
 }
 
-copyAsset('history-page.css', 'history-page.css');
+copyAsset('history-page.css', path.join(assetsDir, 'history-page.css'));
+copyAsset('health-check.html', path.join(distDir, 'index.html'));
