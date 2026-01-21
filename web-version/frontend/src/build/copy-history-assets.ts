@@ -27,3 +27,4 @@ function copyAsset(relativeSource: string, destinationPath: string): void {
 }
 
 copyAsset('history-page.css', path.join(assetsDir, 'history-page.css'));
+copyAsset('../ads.txt', path.join(assetsDir, 'ads.txt'));

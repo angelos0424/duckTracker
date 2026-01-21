@@ -3,6 +3,7 @@ import * as path from 'node:path';
 
 let cachedHistoryCss: string | null = null;
 let cachedHistoryClientScript: string | null = null;
+let cachedAdsTxt: string | null = null;
 
 const assetsDir = path.resolve(process.cwd(), 'dist/history/assets');
 
@@ -26,4 +27,11 @@ export function getHistoryClientScript(): string {
         cachedHistoryClientScript = readAsset('history-client.js');
     }
     return cachedHistoryClientScript;
+}
+
+export function getAdsTxt(): string {
+    if (cachedAdsTxt === null) {
+        cachedAdsTxt = readAsset('ads.txt');
+    }
+    return cachedAdsTxt;
 }
