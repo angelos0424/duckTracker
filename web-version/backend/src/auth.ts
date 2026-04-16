@@ -54,6 +54,8 @@ interface UserInfoResponse {
     nickname?: string;
 }
 
+const OIDC_REQUEST_TIMEOUT_MS = 10_000;
+
 interface CookieOptions {
     httpOnly?: boolean;
     path?: string;
@@ -190,6 +192,14 @@ function redirectResponse(
 function textResponse(res: ServerResponse, statusCode: number, message: string): void {
     res.writeHead(statusCode, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(message);
+}
+
+async function parseJsonResponse<T>(response: Response): Promise<T | null> {
+    try {
+        return (await response.json()) as T;
+    } catch (_error) {
+        return null;
+    }
 }
 
 function createRandomToken(bytes = 32): string {
@@ -418,7 +428,9 @@ export class AuthManager {
         }
 
         if (!this.discoveryPromise) {
-            this.discoveryPromise = fetch(config.discoveryUrl)
+            this.discoveryPromise = fetch(config.discoveryUrl, {
+                signal: AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS)
+            })
                 .then(async (response) => {
                     if (!response.ok) {
                         throw new Error(`Failed to load Authentik discovery document (${response.status}).`);
@@ -434,6 +446,10 @@ export class AuthManager {
                         throw new Error('Authentik discovery document is missing required OIDC endpoints.');
                     }
                     return document;
+                })
+                .catch((errorValue) => {
+                    this.discoveryPromise = null;
+                    throw errorValue;
                 });
         }
 
@@ -464,14 +480,15 @@ export class AuthManager {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: payload.toString()
+            body: payload.toString(),
+            signal: AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS)
         });
 
-        const tokenResponse = (await response.json()) as TokenResponse;
-        if (!response.ok || typeof tokenResponse.access_token !== 'string') {
+        const tokenResponse = await parseJsonResponse<TokenResponse>(response);
+        if (!response.ok || typeof tokenResponse?.access_token !== 'string') {
             const errorDescription =
-                tokenResponse.error_description ||
-                tokenResponse.error ||
+                tokenResponse?.error_description ||
+                tokenResponse?.error ||
                 `OIDC token exchange failed with status ${response.status}.`;
             throw new Error(errorDescription);
         }
@@ -483,14 +500,18 @@ export class AuthManager {
         const response = await fetch(discovery.userinfo_endpoint, {
             headers: {
                 Authorization: `Bearer ${accessToken}`
-            }
+            },
+            signal: AbortSignal.timeout(OIDC_REQUEST_TIMEOUT_MS)
         });
 
         if (!response.ok) {
             throw new Error(`Failed to load user profile from Authentik (${response.status}).`);
         }
 
-        const userInfo = (await response.json()) as UserInfoResponse;
+        const userInfo = await parseJsonResponse<UserInfoResponse>(response);
+        if (!userInfo) {
+            throw new Error('Failed to parse Authentik user profile response.');
+        }
         const normalised = normaliseUserInfo(userInfo);
         if (!normalised) {
             throw new Error('Authentik user profile is missing required identity fields.');
