@@ -1,7 +1,0 @@
-.DS_Store
-.idea
-.github
-/build
-/dist
-/node_modules
-/release

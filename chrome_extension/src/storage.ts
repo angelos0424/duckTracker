@@ -102,8 +102,6 @@ export const setItem = async (urlId: string, title: string) => {
     if (!historySet.data.includes(urlId)) {
       historySet.data.push(urlId);
     } else {
-      // remove item
-      console.log('remove item', urlId);
       historySet.data = historySet.data.filter(id => id !== urlId);
     }
 

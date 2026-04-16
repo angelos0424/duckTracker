@@ -18,7 +18,7 @@ module.exports = {
         splitChunks: {
             name: "vendor",
             chunks(chunk) {
-              return chunk.name !== 'background';
+                return chunk.name !== 'background';
             }
         },
     },
@@ -32,14 +32,14 @@ module.exports = {
                 test: /\.tsx?$/,
                 use: "ts-loader",
             },
-            {
-                test: /\.css$/,
-                use: ['style-loader', 'css-loader'],
-            },
+
         ],
     },
     resolve: {
         extensions: [".ts", ".tsx", ".js", ".css"],
+        alias: {
+            "@types": path.resolve(__dirname, "../src/types"),
+        }
     },
     plugins: [
         new CopyPlugin({

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "jsx": "react-jsx",
+    "outDir": "dist/backend",
+    "rootDir": "backend/src",
+    "baseUrl": ".",
+    "paths": {
+      "@shared/history-page": ["shared/src/history-page.d.ts"],
+      "@shared/*": ["shared/src/*"]
+    },
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "types": ["node"],
+    "typeRoots": ["./backend/src/types", "./node_modules/@types"]
+  },
+  "include": ["backend/src/**/*.ts", "backend/src/**/*.tsx", "backend/src/**/*.d.ts"],
+  "exclude": ["dist", "frontend"]
+}

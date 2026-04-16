@@ -1,12 +1,12 @@
 import { useContext, useState, useEffect, useCallback } from 'react';
 import { ServiceContext } from '../contexts/ServiceContext';
-import {DownloadObject} from "../services/Observer";
-import {ServerMessageStatus} from "../types";
+import { DownloadObject, ElementTypes } from "../types";
+import { BrowserDownloadStatus } from "../types";
 
 export type BackgroundMessage = {
   action: string;
   text: {
-    status: ServerMessageStatus;
+    status: BrowserDownloadStatus;
     url: string;
     urlId: string;
     error?: string;
@@ -20,7 +20,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
   const [isDownloading, setIsDownloading] = useState(false);
   const [percent, setPercent] = useState(0);
   const { toolbarService } = useContext(ServiceContext);
-  const {url, urlId} = downloadObj;
+  const { url, urlId } = downloadObj;
 
   const handleMessage = useCallback((message: BackgroundMessage) => {
     if (message.action === 'download_status') {
@@ -29,10 +29,10 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
 
       if (messageUrlId !== urlId) return;
 
-      if (data.status === 'completed') {
+      if (data.status === 'complete' || data.status === 'completed') {
         setIsDownloading(false);
         setPercent(100);
-        saveHistory();
+        toggleHistory();
       } else if (data.status === 'error') {
         setIsDownloading(false);
         alert(`Download failed: ${data.error}`);
@@ -59,7 +59,7 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
     });
   }, [urlId]);
 
-  const saveHistory = useCallback(() => {
+  const toggleHistory = useCallback(() => {
     chrome.runtime.sendMessage({ action: 'save_history', text: downloadObj }, (response: any) => {
       setSaved(response.success);
     });
@@ -89,16 +89,15 @@ export const useHistoryService = (downloadObj: DownloadObject, isPlayList: boole
   }, [url, urlId, isPlayList]);
 
   const stopDownload = useCallback(() => {
-    console.log("Stopping download for", urlId);
-    chrome.runtime.sendMessage({ 
+    chrome.runtime.sendMessage({
       action: 'stop_download',
-      text: { 
+      text: {
         action: 'stop',
-        urlId 
+        urlId
       }
     });
     setIsDownloading(false); // Optimistically update UI
   }, [urlId]);
 
-  return { saved, isDownloading, saveHistory, download, percent };
+  return { saved, isDownloading, toggleHistory, download, percent };
 };

@@ -1,32 +1,38 @@
 
 class ApiService {
   private apiUrl: string = 'http://localhost:8080';
+  private readonly ready: Promise<void>;
 
   constructor() {
-    this.loadApiUrl();
+    this.ready = this.loadApiUrl();
     chrome.storage.onChanged.addListener((changes, namespace) => {
       if (namespace === 'sync' && changes.apiUrl) {
-        this.apiUrl = changes.apiUrl.newValue;
+        const newValue = changes.apiUrl.newValue;
+        this.apiUrl = typeof newValue === 'string' && newValue.length > 0
+          ? newValue
+          : 'http://localhost:8080';
       }
     });
   }
 
-  private loadApiUrl() {
-    chrome.storage.sync.get(['apiUrl'], (result) => {
-      if (result.apiUrl) {
-        this.apiUrl = result.apiUrl;
-      }
+  private loadApiUrl(): Promise<void> {
+    return new Promise(resolve => {
+      chrome.storage.sync.get(['apiUrl'], (result) => {
+        if (result.apiUrl) {
+          this.apiUrl = result.apiUrl;
+        }
+        resolve();
+      });
     });
   }
 
   async get(endpoint: string) {
-    console.log(`[Req] GET ${this.apiUrl}/${endpoint}`);
+    await this.ready;
     try {
       const response = await fetch(`${this.apiUrl}/${endpoint}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      console.log(`[Res] OK ${response.json()}`)
       return await response.json();
     } catch (error) {
       console.error(`[Res] Error ${error}`);
@@ -35,6 +41,7 @@ class ApiService {
   }
 
   async post(endpoint: string, data: any) {
+    await this.ready;
     const response = await fetch(`${this.apiUrl}/${endpoint}`, {
       method: 'POST',
       headers: {
@@ -46,6 +53,11 @@ class ApiService {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return await response.json();
+  }
+
+  async getApiUrl(): Promise<string> {
+    await this.ready;
+    return this.apiUrl;
   }
 }
 

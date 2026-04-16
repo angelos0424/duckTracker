@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import useHistoryStore from "./store/index";
@@ -32,6 +31,9 @@ const Popup = () => {
 
   const saveApiUrl = () => {
     chrome.storage.sync.set({ apiUrl: apiUrl }, () => {
+      // Small visual feedback could be added here preferably, but alert serves the purpose for now
+      // changing to a more subtle console log or just assuming success for the modern UI flow 
+      // or keeping alert but maybe styling it later. I'll keep alert as requested functionality is purely UI.
       alert('API URL saved!');
     });
   };
@@ -84,33 +86,69 @@ const Popup = () => {
 
   return (
     <div className="popup-container">
-      <h1>트래커 테스트</h1>
+      <h1>YouTube Tracker</h1>
 
-      <div className="api-url-container">
-        <label htmlFor="api-url">API URL:</label>
-        <input type="text" id="api-url" value={apiUrl} onChange={handleApiUrlChange} />
-        <button onClick={saveApiUrl}>Save</button>
+      <div className="card">
+        <div className="section-label">Settings</div>
+        <div className="api-url-container">
+          <input
+            type="text"
+            id="api-url"
+            value={apiUrl}
+            onChange={handleApiUrlChange}
+            className="text-input"
+            placeholder="http://localhost:8080"
+          />
+          <button onClick={saveApiUrl} className="btn btn-primary btn-sm" style={{ width: 'auto' }}>
+            Save
+          </button>
+        </div>
       </div>
 
-      <button onClick={() => chrome.runtime.sendMessage({ action: "toggle_toolbar_visibility" })}>
-        Toggle Toolbar (툴바 show/hidden)
-      </button>
+      <div className="card">
+        <div className="section-label">Controls</div>
+        <button
+          className="btn btn-secondary"
+          onClick={() => chrome.runtime.sendMessage({ action: "toggle_toolbar_visibility" })}
+        >
+          Toggle Toolbar
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={() => chrome.runtime.sendMessage({ action: "recreate_toolbars" })}
+        >
+          Reset Toolbars
+        </button>
+      </div>
 
-      <button onClick={clickDeleteButton} disabled={isLoading}>
-        저장된 history 모두 삭제
-      </button>
+      <div className="card">
+        <div className="section-label">History Management</div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={downloadHistoryToTxt}
+            title="Download to .txt"
+          >
+            Backup
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={uploadHistory}
+            disabled={isLoading}
+            title="Upload from .txt"
+          >
+            Restore
+          </button>
+        </div>
 
-      <button onClick={downloadHistoryToTxt}>
-        History Backup ( Download to txt file )
-      </button>
-
-      <button onClick={uploadHistory} disabled={isLoading}>
-        History Restore ( Upload from txt file )
-      </button>
-
-      <button onClick={() => chrome.runtime.sendMessage({ action: "recreate_toolbars" })}>
-        Init Toolbars
-      </button>
+        <button
+          className="btn btn-danger mt-2"
+          onClick={clickDeleteButton}
+          disabled={isLoading}
+        >
+          Clear All History
+        </button>
+      </div>
 
       <input
         ref={fileInputRef}
@@ -121,9 +159,12 @@ const Popup = () => {
       />
 
       <dialog ref={modalRef}>
-        <h1>모든 history를 삭제합니다.</h1>
-        <button onClick={() => modalRef.current?.close()}>Close</button>
-        <button onClick={deleteAllHistory}>모두삭제</button>
+        <h1>Delete All History?</h1>
+        <p className="mb-2">This action cannot be undone.</p>
+        <div className="dialog-buttons">
+          <button className="btn btn-secondary btn-sm" onClick={() => modalRef.current?.close()}>Cancel</button>
+          <button className="btn btn-danger btn-sm" onClick={deleteAllHistory}>Delete</button>
+        </div>
       </dialog>
     </div>
   );
