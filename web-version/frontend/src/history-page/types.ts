@@ -1,4 +1,5 @@
 export type {
+    AuthenticatedViewer,
     HistoryItem,
     PaginationState,
     HistoryPageViewProps,

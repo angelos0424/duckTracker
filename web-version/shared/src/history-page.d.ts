@@ -27,6 +27,11 @@ export interface HistoryItemBase {
 
 export interface HistoryItem extends HistoryItemBase {}
 
+export interface AuthenticatedViewer {
+    displayName: string;
+    email?: string | null;
+}
+
 export interface PaginationState {
     page: number;
     totalPages: number;
@@ -48,4 +53,5 @@ export interface HistoryPageViewProps {
     checkFormatList: boolean;
     selectedStatuses?: string[];
     statusCounts: Record<string, number>;
+    viewer?: AuthenticatedViewer | null;
 }

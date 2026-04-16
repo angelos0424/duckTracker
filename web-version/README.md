@@ -40,6 +40,16 @@ This folder hosts a lightweight HTTP + WebSocket service that coordinates YouTub
    | `DOCKER_BIN` | Docker CLI binary to call when running downloads in a container. |
    | `SERVER_CONTAINER_NAME` | Name of the running server container (used for sharing volumes with download containers). |
    | `HOST_DOWNLOAD_DIR` | (Compose only) Host folder that maps to the container's download directory. |
+   | `AUTHENTIK_DISCOVERY_URL` | Optional explicit OIDC discovery URL for authentik. |
+   | `AUTHENTIK_BASE_URL` | Base URL of your authentik instance, used with `AUTHENTIK_APPLICATION_SLUG` when discovery URL is not set. |
+   | `AUTHENTIK_APPLICATION_SLUG` | authentik application slug used to derive the OIDC discovery document. |
+   | `AUTHENTIK_CLIENT_ID` | OIDC client ID issued by authentik. |
+   | `AUTHENTIK_CLIENT_SECRET` | OIDC client secret issued by authentik. |
+   | `AUTHENTIK_PUBLIC_ORIGIN` | Public origin where this app is served, used for the callback URL. Example: `https://tracker.example.com`. |
+   | `AUTH_SESSION_SECRET` | Secret used to sign the local session cookie. |
+   | `AUTHENTIK_SCOPES` | Optional scopes list. Defaults to `openid profile email`. |
+   | `AUTH_SESSION_TTL_SECONDS` | Optional signed-session lifetime. Defaults to 12 hours. |
+   | `AUTH_COOKIE_SECURE` | Optional cookie secure override. Defaults to `true` for HTTPS origins. |
 
 2. Build and start the stack:
 
@@ -61,6 +71,18 @@ This folder hosts a lightweight HTTP + WebSocket service that coordinates YouTub
 | `POST` | `/save_history` | Acknowledge history sync events from the extension. |
 
 Responses always include CORS headers so the extension can call the endpoints directly from the browser environment.
+
+## Authentik login
+
+If the authentik variables above are configured, the root page (`/`) becomes a login landing page and only authenticated users can access the history dashboard and `/history/*` browser routes. The Chrome extension compatibility endpoints (`/download`, `/stop_download`, `/restart_download`, `/downloads`, `/save_history`) stay unchanged so the existing extension flow still works.
+
+For a standard authentik OAuth2/OpenID Connect provider, set the callback URL in authentik to:
+
+```text
+https://your-public-origin.example.com/auth/callback
+```
+
+The history page will use a separate authenticated WebSocket path at `/history/ws`, while the original WebSocket path remains available for the extension.
 
 ## Notes
 

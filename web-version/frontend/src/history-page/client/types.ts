@@ -1,4 +1,4 @@
-import type { FormatOption, HistoryItemBase, HistoryPageViewProps } from '../shared/types.js';
+import type { AuthenticatedViewer, FormatOption, HistoryItemBase, HistoryPageViewProps } from '../shared/types.js';
 
 export interface HistoryItem extends HistoryItemBase {}
 
@@ -14,6 +14,7 @@ export interface RequestDownloadPayload {
 
 export type HistoryPageBootstrap = Omit<HistoryPageViewProps, 'items'> & {
     items: HistoryItem[];
+    viewer?: AuthenticatedViewer | null;
 };
 
 export interface WebSocketMessage {

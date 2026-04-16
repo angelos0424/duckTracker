@@ -1,4 +1,5 @@
 import * as http from 'node:http';
+import { AuthManager } from './auth.js';
 import { loadConfig, type ServerConfig } from './config.js';
 import { DownloadManager } from './download-manager.js';
 import { createWebSocketServer, handleUpgrade, WebSocket } from './websocket-server.js';
@@ -10,6 +11,7 @@ const config: ServerConfig = loadConfig();
 initDatabase(config.dbPath);
 
 const downloadManager = new DownloadManager(config);
+const authManager = new AuthManager(config.auth);
 const requestHandler = createRequestHandler({ config, downloadManager });
 const server = http.createServer(requestHandler);
 
@@ -49,7 +51,15 @@ websocketServer.on('connection', (ws: WebSocket) => {
 });
 
 server.on('upgrade', (request, socket, head) => {
-    const ws = handleUpgrade(websocketServer, request, socket, head, config.wsPath);
+    const requestUrl = new URL(request.url ?? '', `http://${request.headers.host}`);
+    const isHistorySocket = requestUrl.pathname === config.historyWsPath;
+    if (isHistorySocket && authManager.isEnabled() && !authManager.isAuthenticated(request)) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        socket.destroy();
+        return;
+    }
+
+    const ws = handleUpgrade(websocketServer, request, socket, head, [config.wsPath, config.historyWsPath]);
     if (ws) {
         websocketServer.emit('connection', ws, request);
     }

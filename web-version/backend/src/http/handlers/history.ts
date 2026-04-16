@@ -22,6 +22,7 @@ import {
     resolveHistoryFileOrThrow,
     resolveWithinDownloadDir
 } from '../../history/files.js';
+import type { AuthenticatedViewer } from '../../auth.js';
 
 interface HistoryHandlerDeps {
     config: ServerConfig;
@@ -93,7 +94,12 @@ type HistoryQuery = Record<string, string | string[] | undefined>;
 export function createHistoryHandlers({ config, downloadManager }: HistoryHandlerDeps) {
     const fileContext = { config, downloadManager } as const;
 
-    function handleHistoryPage(_req: IncomingMessage, res: ServerResponse, query: HistoryQuery): void {
+    function handleHistoryPage(
+        _req: IncomingMessage,
+        res: ServerResponse,
+        query: HistoryQuery,
+        viewer?: AuthenticatedViewer | null
+    ): void {
         const searchTerm = typeof query.search === 'string' ? query.search.trim() : '';
         let page = parseInteger(query.page, 1);
         let pageSize = parseInteger(query.pageSize, 20);
@@ -150,8 +156,9 @@ export function createHistoryHandlers({ config, downloadManager }: HistoryHandle
             selectedStatuses: statusFilter,
             statusCounts: result.statusCounts,
             searchTerm,
-            wsPath: config.wsPath,
-            checkFormatList: config.checkFormatList
+            wsPath: config.auth ? config.historyWsPath : config.wsPath,
+            checkFormatList: config.checkFormatList,
+            viewer
         });
 
         htmlResponse(res, 200, html);
