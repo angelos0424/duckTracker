@@ -15,6 +15,12 @@ body {
     color: #0f172a;
 }
 
+body:has(.auth-shell) {
+    background:
+        radial-gradient(circle at top, rgba(79, 70, 229, 0.16), transparent 45%),
+        linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
 a {
     color: inherit;
     text-decoration: none;
@@ -113,6 +119,26 @@ input {
     color: #0f172a;
 }
 
+.history-shell__account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.history-shell__account-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: right;
+    color: #334155;
+}
+
+.history-shell__account-copy span {
+    font-size: 0.88rem;
+    color: #64748b;
+}
+
 .history-shell__subtitle {
     margin: 4px 0 0;
     color: #475569;
@@ -161,6 +187,64 @@ input {
     border-color: #818cf8;
     color: #4338ca;
     background: rgba(129, 140, 248, 0.08);
+}
+
+.auth-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.auth-card {
+    width: min(100%, 480px);
+    padding: 40px 32px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(99, 102, 241, 0.16);
+    box-shadow: 0 32px 80px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(18px);
+}
+
+.auth-card__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(79, 70, 229, 0.12);
+    color: #4338ca;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.auth-card__title {
+    margin: 18px 0 12px;
+    font-size: clamp(2rem, 6vw, 2.6rem);
+    line-height: 1.05;
+}
+
+.auth-card__description {
+    margin: 0;
+    color: #475569;
+    font-size: 1rem;
+}
+
+.auth-card__error {
+    margin: 18px 0 0;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(239, 68, 68, 0.08);
+    color: #b91c1c;
+    border: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+.auth-card__button {
+    width: 100%;
+    margin-top: 24px;
+    padding-block: 14px;
 }
 
 .history-toolbar {

@@ -13,7 +13,7 @@ export function handleUpgrade(
     request: IncomingMessage,
     socket: Duplex,
     head: Buffer,
-    pathFilter?: string
+    pathFilter?: string | readonly string[]
 ): WebSocket | null {
     if (request.headers.upgrade?.toLowerCase() !== 'websocket') {
         socket.destroy();
@@ -21,7 +21,8 @@ export function handleUpgrade(
     }
 
     const requestUrl = new URL(request.url ?? '', `http://${request.headers.host}`);
-    if (pathFilter && requestUrl.pathname !== pathFilter) {
+    const pathFilters = typeof pathFilter === 'string' ? [pathFilter] : pathFilter;
+    if (pathFilters && !pathFilters.includes(requestUrl.pathname)) {
         socket.destroy();
         return null;
     }

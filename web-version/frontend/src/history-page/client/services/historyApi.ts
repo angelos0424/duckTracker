@@ -56,7 +56,7 @@ export async function deleteHistory(urlId: string): Promise<void> {
 }
 
 export async function stopDownload(urlId: string): Promise<HistoryItem | null> {
-    const response = await fetch('/stop_download', {
+    const response = await fetch('/history/stop-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urlId })
@@ -70,7 +70,7 @@ export async function stopDownload(urlId: string): Promise<HistoryItem | null> {
 }
 
 export async function resumeDownload(urlId: string): Promise<DownloadRequestResponse | HistoryItem | null> {
-    const response = await fetch('/restart_download', {
+    const response = await fetch('/history/restart-download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urlId })

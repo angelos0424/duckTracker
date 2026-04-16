@@ -843,6 +843,17 @@ export const HistoryApp: FC<HistoryAppProps> = (props) => {
                     <div>
                         <h1 className="history-shell__title">DuckTracker</h1>
                     </div>
+                    {props.viewer ? (
+                        <div className="history-shell__account">
+                            <div className="history-shell__account-copy">
+                                <strong>{props.viewer.displayName}</strong>
+                                {props.viewer.email ? <span>{props.viewer.email}</span> : null}
+                            </div>
+                            <a className="button button--outline" href="/auth/logout">
+                                로그아웃
+                            </a>
+                        </div>
+                    ) : null}
                 </header>
                 <div className="history-toolbar">
                     <div className="history-toolbar__filters">

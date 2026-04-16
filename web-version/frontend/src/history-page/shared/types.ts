@@ -1,4 +1,5 @@
 export type {
+    AuthenticatedViewer,
     FormatOption,
     AddDownloadDialogMode,
     HistoryItemBase,
