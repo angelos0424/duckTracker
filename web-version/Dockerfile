@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN apt-get update \
 
 # 로케일 생성 (ko_KR.UTF-8)
 RUN sed -i '/ko_KR.UTF-8/s/^# //g' /etc/locale.gen \
-  && locale-gen ko_KR.UTF-8 \
+  && locale-gen ko_KR.UTF-8
 
 # 로케일 환경변수 설정
 ENV LANG=ko_KR.UTF-8

@@ -94,7 +94,7 @@ The history page will use a separate authenticated WebSocket path at `/history/w
 
 ## Development
 
-To run the server without Docker you only need Node.js 20+ and `yt-dlp` available in your `PATH`:
+To run the server without Docker you need Node.js 24 LTS (matching the Docker image) and `yt-dlp` available in your `PATH`:
 
 ```bash
 PORT=8080 DOWNLOAD_DIR=./downloads YT_DLP_RUNNER=binary npm run dev
