@@ -1,9 +1,11 @@
 services:
   pot-provider:
-    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    build:
+      context: ./pot-provider
+    image: ducktracker-pot-provider:node26.12.1
     container_name: pot-provider
     restart: unless-stopped
-    command: ["--port", "8080"]          # 기본 포트 바꾸고 싶으면 여기 조정
+    command: ["--host", "0.0.0.0", "--port", "8080"]          # 기본 포트 바꾸고 싶으면 여기 조정
     expose:
       - "8080"
   ducktracker-server:
