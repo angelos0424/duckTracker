@@ -1,8 +1,9 @@
-// services/ToolbarService.ts
-import {createRoot} from 'react-dom/client';
-import {TrackToolbar} from '../component/TrackToolbar';
+import { createRoot } from 'react-dom/client';
+import { TrackToolbar } from '../component/TrackToolbar';
+import { ErrorBoundary } from '../component/ErrorBoundary';
 import React from 'react';
-import {DownloadObject, ElementTypes, FromType} from "./Observer";
+import { DownloadObject, ElementTypes, FromType } from "../types";
+import { TOOLBAR_TARGETS } from '../config/selectors';
 
 export class ToolbarService {
   public static readonly TOOLBAR_CLASS = 'trackerToolbar';
@@ -11,107 +12,41 @@ export class ToolbarService {
     const toolbars = document.querySelectorAll(`.${this.TOOLBAR_CLASS}`);
     toolbars.forEach(toolbar => toolbar.remove());
 
-    // 모든 dataset.trackerProcessed를 가진 요소를 찾아서 초기화
-    document.querySelectorAll('[data-tracker-processed="true"]').forEach(el => {
+    // 모든 data-tracker-processed 값을 초기화해서 재탐색이 가능하도록 함
+    document.querySelectorAll('[data-tracker-processed]').forEach(el => {
       delete (el as HTMLElement).dataset.trackerProcessed;
     });
 
     return Promise.resolve();
   }
 
-  public static createToolbar(item: Element, els: DownloadObject): void {
-    const isPlayList = els.type === ElementTypes.PLAYLIST; // element.closest('yt-lockup-view-model') !== null;
+  public static createToolbar(container: Element, els: DownloadObject): void {
     if (!els.urlId) {
       console.log('No urlId found in element:', els);
       return;
     }
 
-    let parent;
+    // Phase 3: 'container' is now passed directly from Strategy.
+    // No need to switch-case on FromType to find parent.
 
-    // from에 따라 다르게 처리
-    // Main
-    // Video
-    // Shorts
+    // Safety check just in case strategy passed something wrong? 
+    // Or we trust the strategy. Let's assume strategy is correct.
+    const parent = container;
 
-    switch (els.from) {
-      case FromType.VIDEO:
-        switch (els.type) {
-          case ElementTypes.VIDEO:
-          case ElementTypes.PLAYLIST:
-            parent = item.closest('div');
-            break;
-          case ElementTypes.SHORTS:
-            parent = item.closest('ytm-shorts-lockup-view-model-v2');
-            break;
-          case ElementTypes.VIDEOPLAYER:
-            parent = item.querySelector('ytd-player#ytd-player');
-            break;
-        }
-        break;
-      case FromType.SEARCH:
-        switch (els.type) {
-          case ElementTypes.VIDEO:
-            parent = item.closest('ytd-video-renderer');
-            break;
-          case ElementTypes.PLAYLIST:
-            parent = item.closest('yt-lockup-view-model');
-            break;
-          case ElementTypes.SHORTS:
-            parent = item.closest('ytm-shorts-lockup-view-model-v2');
-            break;
-        }
-        break;
-      case FromType.PLAYLIST:
-        parent = item.closest('ytd-rich-item-renderer');
-        break;
-      case FromType.SHORTS:
-        parent = item.closest('ytd-reel-video-renderer#reel-video-renderer');
-        break;
-      case FromType.CHANNEL:
-        switch (els.type) {
-          case ElementTypes.VIDEO:
-            parent = item.closest('ytd-thumbnail');
-            break;
-          case ElementTypes.SHORTS:
-            parent = item.closest('ytm-shorts-lockup-view-model-v2');
-            break;
-          case ElementTypes.PLAYLIST:
-            parent = item;
-            break;
-        }
-        break;
-      case FromType.SUBSCRIPT:
-        switch (els.type) {
-          case ElementTypes.VIDEO:
-          case ElementTypes.PLAYLIST:
-            parent = item.closest('ytd-video-renderer');
-            break;
-          case ElementTypes.SHORTS:
-            parent = item.closest('ytm-shorts-lockup-view-model-v2');
-        }
-        break;
-      default: // FromType.MAIN
-        switch (els.type) {
-          case ElementTypes.VIDEO:
-          case ElementTypes.PLAYLIST:
-            parent = item.closest('ytd-rich-item-renderer');
-            break;
-          case ElementTypes.SHORTS:
-            parent = item.closest('ytm-shorts-lockup-view-model-v2'); // item.parentElement?.parentElement;
-            break;
-        }
-        break;
+    const existingToolbar = document.querySelector(`.${this.TOOLBAR_CLASS}.url-${els.urlId}`) as HTMLElement | null;
+
+    if (existingToolbar) {
+      if (existingToolbar.parentElement === parent) {
+        return;
+      }
+      existingToolbar.remove();
     }
 
-    if (!parent || parent.querySelector(`div.${this.TOOLBAR_CLASS}.${'url-'+els.urlId}`)) {
-      if (!parent) {
-        console.log('No parent found:', els);
-      } else {
-        console.log('Toolbar already exists:', parent);
-      }
+    if (parent.querySelector(`div.${this.TOOLBAR_CLASS}.url-${els.urlId}`)) {
       return;
     }
 
+    const isPlayList = els.type === ElementTypes.PLAYLIST;
     const toolbar = this.createToolbarElement(els.urlId);
     this.renderToolbarContent(toolbar, els, isPlayList);
     parent.prepend(toolbar);
@@ -137,6 +72,10 @@ export class ToolbarService {
 
   private static renderToolbarContent(element: HTMLElement, els: DownloadObject, isPlayList: boolean): void {
     const root = createRoot(element);
-    root.render(React.createElement(TrackToolbar, { els, isPlayList }));
+    root.render(
+      React.createElement(ErrorBoundary, null,
+        React.createElement(TrackToolbar, { els, isPlayList })
+      )
+    );
   }
 }
